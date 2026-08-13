@@ -6,6 +6,7 @@ import 'dotenv/config';
 import type { Server as HttpServer } from 'node:http';
 import jwt from 'jsonwebtoken';
 import { Server, type Socket } from 'socket.io';
+import CORS_ORIGINS from '../config/cors.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 
@@ -13,7 +14,7 @@ let io: Server | null = null;
 
 /** Inisialisasi Socket.IO di atas HTTP server yang sama dengan Express. */
 export function initSocket(httpServer: HttpServer) {
-  io = new Server(httpServer, { cors: { origin: '*' } });
+  io = new Server(httpServer, { cors: { origin: CORS_ORIGINS } });
 
   io.use((socket: Socket, next) => {
     const token = socket.handshake.auth?.token as string | undefined;
