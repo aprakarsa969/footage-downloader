@@ -5,3 +5,5 @@ tmp/
 .agents/
 .postman/
 skills-lock.json
+docs/
+postman/
