@@ -1,0 +1,160 @@
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { HardDrive } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+
+import { Button } from "@/components/atoms/Button";
+import { Input } from "@/components/atoms/Input";
+import { Spinner } from "@/components/atoms/Spinner";
+import { EmptyState } from "@/components/molecules/EmptyState";
+import { Modal } from "@/components/molecules/Modal";
+import { api, goToDriveConnect } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
+import type { ApiDriveAccount, ApiProject } from "@/types/api";
+
+const createProjectSchema = z.object({
+  name: z.string().trim().min(1, "Nama project wajib diisi"),
+  driveAccountId: z.string().min(1, "Pilih akun Drive"),
+});
+
+type CreateProjectFormValues = z.infer<typeof createProjectSchema>;
+
+const selectClassName =
+  "h-12 rounded-input border border-border bg-bg-surface px-3 text-body text-text-primary focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+export type CreateProjectModalProps = {
+  open: boolean;
+  onClose: () => void;
+};
+
+export function CreateProjectModal({ open, onClose }: CreateProjectModalProps) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  const accountsQuery = useQuery({
+    queryKey: ["drive-accounts"],
+    queryFn: () => api<ApiDriveAccount[]>("/drive-accounts"),
+  });
+
+  const createProjectMutation = useMutation({
+    mutationFn: (body: CreateProjectFormValues) =>
+      api<ApiProject>("/projects", {
+        method: "POST",
+        body: { name: body.name, drive_account_id: body.driveAccountId },
+      }),
+    onSuccess: (project) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      useToastStore.getState().push(`Project "${project.name}" berhasil dibuat`);
+      onClose();
+      router.push(`/projects/${project.id}`);
+    },
+    onError: (error: Error) =>
+      useToastStore.getState().push(error.message, "error"),
+  });
+
+  const accounts = accountsQuery.data ?? [];
+  const defaultAccount = accounts.find((account) => account.is_default) ?? accounts[0];
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CreateProjectFormValues>({
+    resolver: zodResolver(createProjectSchema),
+    defaultValues: { name: "", driveAccountId: defaultAccount?.id ?? "" },
+  });
+
+  return (
+    <Modal open={open} onClose={onClose} title="Buat Project Baru">
+      {accountsQuery.isPending ? (
+        <div className="flex justify-center py-8">
+          <Spinner />
+        </div>
+      ) : accounts.length === 0 ? (
+        <div className="space-y-4">
+          <EmptyState
+            icon={HardDrive}
+            title="Belum ada akun Drive terhubung"
+            description="Hubungkan Google Drive dulu untuk menyimpan hasil download"
+            action={
+              <Button onClick={goToDriveConnect}>Hubungkan Akun Drive</Button>
+            }
+          />
+          <div className="text-center">
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Batal
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form
+          className="space-y-4"
+          onSubmit={handleSubmit((values) => createProjectMutation.mutate(values))}
+        >
+          <div className="space-y-1">
+            <label htmlFor="project-name" className="text-caption text-text-secondary">
+              Nama Project
+            </label>
+            <Input
+              id="project-name"
+              placeholder="mis. Konten YouTube Agustus"
+              autoFocus
+              aria-invalid={Boolean(errors.name)}
+              className={
+                errors.name
+                  ? "border-status-danger focus:border-status-danger focus:ring-status-danger/20"
+                  : undefined
+              }
+              {...register("name")}
+            />
+            {errors.name ? (
+              <p className="text-helper text-status-danger">{errors.name.message}</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="project-drive" className="text-caption text-text-secondary">
+              Akun Drive Tujuan
+            </label>
+            <select
+              id="project-drive"
+              className={selectClassName}
+              aria-invalid={Boolean(errors.driveAccountId)}
+              {...register("driveAccountId")}
+            >
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.google_account_email}
+                  {account.is_default ? " (default)" : ""}
+                </option>
+              ))}
+            </select>
+            {errors.driveAccountId ? (
+              <p className="text-helper text-status-danger">
+                {errors.driveAccountId.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Batal
+            </Button>
+            <Button type="submit" disabled={createProjectMutation.isPending}>
+              {createProjectMutation.isPending ? "Membuat..." : "Buat Project"}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}

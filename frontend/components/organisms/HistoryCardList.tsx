@@ -1,0 +1,81 @@
+"use client";
+
+import { ExternalLink } from "lucide-react";
+import Link from "next/link";
+
+import { Button } from "@/components/atoms/Button";
+import { Icon } from "@/components/atoms/Icon";
+import { MonoText } from "@/components/atoms/MonoText";
+import { PlatformIcon } from "@/components/molecules/PlatformIcon";
+import { StatusBadge } from "@/components/molecules/StatusBadge";
+import { ThumbnailPreview } from "@/components/molecules/ThumbnailPreview";
+import { formatRelativeTime } from "@/lib/date";
+import type { HistoryEntry } from "@/types/history";
+
+export type HistoryCardListProps = {
+  entries: HistoryEntry[];
+  onRetry?: (entry: HistoryEntry) => void;
+};
+
+export function HistoryCardList({ entries, onRetry }: HistoryCardListProps) {
+  return (
+    <div className="space-y-3">
+      {entries.map((entry) => (
+        <div
+          key={entry.id}
+          className="flex gap-3 rounded-card border border-border bg-bg-card p-4 shadow-card"
+        >
+          {entry.thumbnailUrl ? (
+            <ThumbnailPreview src={entry.thumbnailUrl} className="w-24 shrink-0" />
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="truncate text-body font-medium text-text-primary">
+                <Link
+                  href={`/jobs/${entry.id}`}
+                  className="transition-colors duration-hover hover:text-primary"
+                >
+                  {entry.videoTitle ?? entry.url}
+                </Link>
+              </h3>
+              <StatusBadge status={entry.status} size="sm" />
+            </div>
+            <p className="mt-0.5 truncate text-caption text-text-muted">
+              {entry.projectName ? `${entry.projectName} · ` : ""}
+              {entry.mode === "timestamp" ? "Timestamp" : "Full"}
+              {entry.resolution ? ` · ${entry.resolution}` : ""}
+            </p>
+            <div className="mt-1.5 flex items-center gap-2">
+              <PlatformIcon platform={entry.platform} />
+              <MonoText className="text-helper text-text-muted">
+                {formatRelativeTime(entry.createdAt)}
+              </MonoText>
+            </div>
+            <div className="mt-2">
+              {entry.status === "failed" && onRetry ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => onRetry(entry)}
+                >
+                  Retry
+                </Button>
+              ) : entry.status === "done" && entry.driveFileUrl ? (
+                <a
+                  href={entry.driveFileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Buka file di Drive"
+                  className="inline-flex items-center gap-1.5 rounded-button bg-bg-surface px-3 py-2 text-caption text-text-secondary transition-colors duration-hover hover:text-primary"
+                >
+                  <Icon icon={ExternalLink} size={16} />
+                  Buka di Drive
+                </a>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

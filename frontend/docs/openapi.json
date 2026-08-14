@@ -1,0 +1,860 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Footage Downloader API",
+    "version": "1.0.0",
+    "description": "Backend for the video footage downloader: Google OAuth login, YouTube/TikTok/etc. metadata validation, batch download + trim + upload to Google Drive, realtime progress via Socket.IO, dashboard and notifications.\n\nAll endpoints (except auth flows and the Drive connect callback) require a JWT bearer token obtained from `GET /auth/google/callback`. Realtime progress events are delivered over Socket.IO and described under Webhooks."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Google OAuth login and logout" },
+    { "name": "Drive Accounts", "description": "Connect and manage Google Drive accounts" },
+    { "name": "Projects", "description": "Projects group downloaded footage into a Drive folder" },
+    { "name": "Links", "description": "Validate source URLs before download" },
+    { "name": "Jobs", "description": "Batch download jobs: submit, list, detail, retry, cancel" },
+    { "name": "Dashboard", "description": "Aggregated stats and job history" },
+    { "name": "Notifications", "description": "In-app notifications for completed batches" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string", "example": "NOT_FOUND" },
+              "message": { "type": "string", "example": "Project not found" }
+            }
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "batch_id": { "type": ["string", "null"], "format": "uuid" },
+          "source_url": { "type": "string", "format": "uri" },
+          "platform": { "type": "string", "example": "youtube" },
+          "video_title": { "type": ["string", "null"] },
+          "duration_seconds": { "type": ["integer", "null"] },
+          "thumbnail_url": { "type": ["string", "null"] },
+          "mode": { "type": "string", "enum": ["full", "timestamp"] },
+          "resolution": { "type": ["string", "null"], "example": "1080" },
+          "trim_start_seconds": { "type": ["integer", "null"] },
+          "trim_end_seconds": { "type": ["integer", "null"] },
+          "status": { "type": "string", "enum": ["pending", "processing", "done", "failed", "cancelled"] },
+          "progress_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "file_name": { "type": ["string", "null"] },
+          "drive_file_url": { "type": ["string", "null"] },
+          "error_message": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "started_at": { "type": ["string", "null"], "format": "date-time" },
+          "finished_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "JobSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "project_id": { "type": "string", "format": "uuid" },
+          "project_name": { "type": "string" },
+          "source_url": { "type": "string", "format": "uri" },
+          "video_title": { "type": ["string", "null"] },
+          "platform": { "type": "string" },
+          "mode": { "type": "string", "enum": ["full", "timestamp"] },
+          "status": { "type": "string", "enum": ["pending", "processing", "done", "failed", "cancelled"] },
+          "progress_percent": { "type": "integer" },
+          "error_message": { "type": ["string", "null"] },
+          "drive_file_url": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "finished_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "drive_account_id": { "type": "string", "format": "uuid" },
+          "drive_folder_id": { "type": "string" },
+          "drive_folder_url": { "type": "string", "format": "uri" },
+          "total_footage_count": { "type": "integer", "minimum": 0 },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProjectDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Project" },
+          {
+            "type": "object",
+            "properties": {
+              "job_status_summary": {
+                "type": "object",
+                "properties": {
+                  "pending": { "type": "integer" },
+                  "processing": { "type": "integer" },
+                  "done": { "type": "integer" },
+                  "failed": { "type": "integer" },
+                  "cancelled": { "type": "integer" }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PaginatedProjects": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Project" } },
+          "total": { "type": "integer" },
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" }
+        }
+      },
+      "DriveAccount": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "google_account_email": { "type": "string", "format": "email" },
+          "storage_used_bytes": { "type": ["string", "null"] },
+          "storage_total_bytes": { "type": ["string", "null"] },
+          "is_active": { "type": "boolean" },
+          "is_default": { "type": "boolean" },
+          "connected_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "batch_id": { "type": ["string", "null"], "format": "uuid" },
+          "project_id": { "type": ["string", "null"], "format": "uuid" },
+          "message": { "type": "string" },
+          "is_read": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ValidateLinkSuccess": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "title": { "type": "string" },
+          "durationSeconds": { "type": ["integer", "null"] },
+          "thumbnailUrl": { "type": ["string", "null"] },
+          "platform": { "type": "string", "example": "youtube" },
+          "availableResolutions": { "type": "array", "items": { "type": "integer" } }
+        }
+      },
+      "ValidateLinkError": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "INVALID_LINK" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      },
+      "DashboardSummary": {
+        "type": "object",
+        "properties": {
+          "total_projects": { "type": "integer" },
+          "total_footage": { "type": "integer" },
+          "jobs": {
+            "type": "object",
+            "properties": {
+              "pending": { "type": "integer" },
+              "processing": { "type": "integer" },
+              "done": { "type": "integer" },
+              "failed": { "type": "integer" },
+              "cancelled": { "type": "integer" }
+            }
+          },
+          "storage": {
+            "type": "object",
+            "properties": {
+              "used_bytes": { "type": "string" },
+              "total_bytes": { "type": "string" }
+            }
+          }
+        }
+      },
+      "AuthCallbackResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "description": "JWT, expires in 7 days. Send as `Authorization: Bearer <token>`." },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "name": { "type": "string" },
+              "email": { "type": "string", "format": "email" },
+              "avatar_url": { "type": ["string", "null"] }
+            }
+          }
+        }
+      },
+      "BatchCreateRequest": {
+        "type": "object",
+        "required": ["links"],
+        "properties": {
+          "links": {
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["url"],
+              "properties": {
+                "url": { "type": "string", "format": "uri" },
+                "mode": { "type": "string", "enum": ["full", "timestamp"], "default": "full" },
+                "resolution": { "type": "string", "description": "Max video height, e.g. \"1080\"", "example": "1080" },
+                "trim_start_seconds": { "type": "integer", "minimum": 0 },
+                "trim_end_seconds": { "type": "integer", "description": "Must be > trim_start_seconds. Only used when mode = timestamp." }
+              }
+            }
+          }
+        }
+      },
+      "BatchCreateResponse": {
+        "type": "object",
+        "properties": {
+          "batch_id": { "type": "string", "format": "uuid" },
+          "project_id": { "type": "string", "format": "uuid" },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "format": "uuid" },
+                "url": { "type": "string", "format": "uri" },
+                "mode": { "type": "string", "enum": ["full", "timestamp"] },
+                "resolution": { "type": ["string", "null"] },
+                "trim_start_seconds": { "type": ["integer", "null"] },
+                "trim_end_seconds": { "type": ["integer", "null"] },
+                "status": { "type": "string", "enum": ["pending", "failed"] }
+              }
+            }
+          }
+        }
+      },
+      "PaginatedJobs": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Job" } },
+          "total": { "type": "integer" },
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" }
+        }
+      },
+      "PaginatedJobSummary": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/JobSummary" } },
+          "total": { "type": "integer" },
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" }
+        }
+      },
+      "SetDefaultResponse": {
+        "type": "object",
+        "properties": {
+          "default_drive_account_id": { "type": "string", "format": "uuid" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Health check",
+        "description": "Server liveness probe.",
+        "responses": {
+          "200": { "description": "Server is running" }
+        }
+      }
+    },
+    "/auth/google": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Start Google login",
+        "description": "Redirects the browser to the Google OAuth consent screen. No auth header needed.",
+        "responses": {
+          "302": { "description": "Redirect to Google consent" }
+        }
+      }
+    },
+    "/auth/google/callback": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Google OAuth callback",
+        "description": "Exchanges the OAuth code for a user (created automatically on first login) and returns a JWT. Use the returned token as `Authorization: Bearer <token>` for all other endpoints.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Authorization code from Google"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Login success",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthCallbackResponse" } } }
+          },
+          "400": { "description": "Missing authorization code", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "description": "Authentication failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout",
+        "description": "Stateless logout. The JWT is simply discarded by the client.",
+        "responses": {
+          "204": { "description": "No content" }
+        }
+      }
+    },
+    "/drive-accounts": {
+      "get": {
+        "tags": ["Drive Accounts"],
+        "summary": "List Drive accounts",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of connected accounts",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DriveAccount" } } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/drive-accounts/connect": {
+      "get": {
+        "tags": ["Drive Accounts"],
+        "summary": "Connect a Drive account",
+        "description": "Redirects the browser to the Google OAuth consent screen for Drive scope.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "302": { "description": "Redirect to Google Drive consent" },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/drive-accounts/connect/callback": {
+      "get": {
+        "tags": ["Drive Accounts"],
+        "summary": "Drive OAuth callback",
+        "description": "Receives the OAuth code and stores the new Drive account (tokens encrypted). The userId is passed back via the `state` query parameter.",
+        "parameters": [
+          { "name": "code", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "state", "in": "query", "required": true, "schema": { "type": "string" }, "description": "User id echoed back from the connect redirect" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account connected",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DriveAccount" } } }
+          },
+          "400": { "description": "Missing code or state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/drive-accounts/{id}/set-default": {
+      "patch": {
+        "tags": ["Drive Accounts"],
+        "summary": "Set default Drive account",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Account set as default",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetDefaultResponse" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Account not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/drive-accounts/{id}": {
+      "delete": {
+        "tags": ["Drive Accounts"],
+        "summary": "Disconnect a Drive account",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "204": { "description": "Account disconnected" },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Account not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": {
+            "description": "Account still used by an active project",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "List projects",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated project list",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaginatedProjects" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Create project",
+        "description": "Creates a Google Drive folder for the project automatically.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "drive_account_id"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "drive_account_id": { "type": "string", "format": "uuid" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Project" } } }
+          },
+          "400": { "description": "name and drive_account_id are required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Drive account not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/projects/{id}": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Get project detail",
+        "description": "Project details plus a summary of job counts per status.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Project detail",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProjectDetail" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Project not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "patch": {
+        "tags": ["Projects"],
+        "summary": "Rename project",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project renamed",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Project" } } }
+          },
+          "400": { "description": "name is required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Project not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Soft-delete project",
+        "description": "Marks the project deleted. The Drive folder and its files are NOT deleted.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "204": { "description": "Project deleted" },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Project not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/links/validate": {
+      "post": {
+        "tags": ["Links"],
+        "summary": "Validate URLs",
+        "description": "Fetches metadata for up to 20 URLs. Each result is either a success payload or an INVALID_LINK error.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["urls"],
+                "properties": {
+                  "urls": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "type": "string", "format": "uri" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation results (one object per URL)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      { "$ref": "#/components/schemas/ValidateLinkSuccess" },
+                      { "$ref": "#/components/schemas/ValidateLinkError" }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "urls must be a non-empty array of strings", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/projects/{projectId}/jobs": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Submit batch download",
+        "description": "Creates one job per link (max 50) in a single batch and enqueues them for processing by the worker. Each job is created with status `pending`; the worker fetches metadata, downloads, optionally trims, and uploads to the project's Drive folder.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchCreateRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch created and enqueued",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchCreateResponse" } } }
+          },
+          "400": {
+            "description": "Invalid links array or invalid per-link fields",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Project not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "List jobs in a project",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "projectId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["pending", "processing", "done", "failed", "cancelled"] } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated job list",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaginatedJobs" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Project not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get job detail",
+        "description": "Useful for manual polling when no WebSocket client is connected.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Job detail",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Job" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Job not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/jobs/{id}/retry": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Retry failed job",
+        "description": "Resets a `failed` job back to `pending` and re-enqueues it.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Job reset to pending",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Job" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Job not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "Only failed jobs can be retried", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/jobs/{id}/cancel": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Cancel a job",
+        "description": "Cancels a `pending` or `processing` job. The worker checks status again before finalizing, so an in-flight download is aborted.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Job cancelled",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Job" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Job not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "Only pending/processing jobs can be cancelled", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/dashboard/summary": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Dashboard summary",
+        "description": "Global aggregates: project and footage counts, jobs per status, total Drive storage.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Summary",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DashboardSummary" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/dashboard/active-jobs": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Active jobs",
+        "description": "Jobs currently `pending` or `processing`, paginated.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated active jobs",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaginatedJobSummary" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/dashboard/history": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Job history",
+        "description": "All of the user's jobs (across projects) with optional filters, paginated.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "project_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["pending", "processing", "done", "failed", "cancelled"] } },
+          { "name": "platform", "in": "query", "schema": { "type": "string", "example": "youtube" } },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "ISO date, inclusive lower bound on created_at" },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "ISO date, inclusive upper bound on created_at. Must be >= from." },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated job history",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaginatedJobSummary" } } }
+          },
+          "400": {
+            "description": "Invalid status, invalid/out-of-range date, or foreign project_id",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/notifications": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "List notifications",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "unread_only", "in": "query", "schema": { "type": "boolean", "default": false } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notifications, newest first",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Notification" } } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/notifications/{id}/read": {
+      "patch": {
+        "tags": ["Notifications"],
+        "summary": "Mark one notification read",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": {
+            "description": "Updated notification",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Notification" } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Notification not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/notifications/read-all": {
+      "patch": {
+        "tags": ["Notifications"],
+        "summary": "Mark all notifications read",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "All notifications marked read",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean", "example": true } } } } }
+          },
+          "401": { "description": "Missing or invalid token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  },
+  "x-webhooks": {
+    "job:progress": {
+      "post": {
+        "summary": "Realtime job progress",
+        "description": "Emitted over Socket.IO to room `user:{userId}` while a job is processing. Connect with `auth: { token }`.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "job_id": { "type": "string", "format": "uuid" },
+                  "project_id": { "type": "string", "format": "uuid" },
+                  "status": { "type": "string", "example": "processing" },
+                  "progress_percent": { "type": "integer", "enum": [10, 40, 55, 70] },
+                  "stage": { "type": "string", "enum": ["downloading", "trimming", "uploading"] }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "job:done": {
+      "post": {
+        "summary": "Job completed",
+        "description": "Emitted over Socket.IO when a job finishes uploading to Drive.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "job_id": { "type": "string", "format": "uuid" },
+                  "project_id": { "type": "string", "format": "uuid" },
+                  "status": { "type": "string", "example": "done" },
+                  "drive_file_url": { "type": "string", "format": "uri" },
+                  "file_name": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "job:failed": {
+      "post": {
+        "summary": "Job failed",
+        "description": "Emitted over Socket.IO when a job fails at any stage.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "job_id": { "type": "string", "format": "uuid" },
+                  "project_id": { "type": "string", "format": "uuid" },
+                  "status": { "type": "string", "example": "failed" },
+                  "error_message": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "batch:completed": {
+      "post": {
+        "summary": "Batch completed",
+        "description": "Emitted over Socket.IO when every job in a batch reaches a final state.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "batch_id": { "type": "string", "format": "uuid" },
+                  "project_id": { "type": "string", "format": "uuid" },
+                  "total": { "type": "integer" },
+                  "done": { "type": "integer" },
+                  "failed": { "type": "integer" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
