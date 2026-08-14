@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-base: #101418;
+  --color-bg-surface: #171B20;
+  --color-bg-card: #1D232A;
+  --color-bg-elevated: #232B34;
+  --color-border: rgba(255,255,255,.06);
+  --color-border-hover: rgba(61,217,196,.35);
+  --color-text-primary: #F8FAFC;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+  --color-primary: #39D6C3;
+  --color-primary-hover: #4BE4D1;
+  --color-primary-pressed: #2BC0AE;
+  --color-status-success: #22C55E;
+  --color-status-warning: #F5B041;
+  --color-status-danger: #EF4444;
+  --color-status-info: #38BDF8;
+
+  --radius-card: 16px;
+  --radius-button: 14px;
+  --radius-input: 14px;
+  --radius-dropdown: 16px;
+  --radius-modal: 24px;
+  --radius-sidebar: 24px;
+
+  --shadow-card: 0 8px 24px rgba(0,0,0,.15);
+  --shadow-card-hover: 0 12px 32px rgba(0,0,0,.18);
+
+  --font-heading: var(--font-outfit);
+  --font-body: var(--font-figtree);
+  --font-mono: var(--font-spline-mono);
+
+  --text-hero: 48px;
+  --text-page-title: 36px;
+  --text-section-title: 28px;
+  --text-card-title: 22px;
+  --text-subtitle: 18px;
+  --text-body: 16px;
+  --text-caption: 14px;
+  --text-helper: 12px;
+
+  --spacing-18: 4.5rem;
+  --max-width-content: 1400px;
+  --transition-duration-hover: 150ms;
+  --transition-duration-modal: 200ms;
+  --transition-duration-sidebar: 250ms;
+}
+
+@utility glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 10px 15px -3px rgba(0, 0, 0, 0.03);
+}
