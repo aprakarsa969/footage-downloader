@@ -27,7 +27,7 @@ import { countActiveProjectsByDriveAccount } from '../repositories/project.repos
 import { AppError } from '../utils/AppError.js';
 import { driveAccountToResponse } from '../utils/responses.js';
 
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file', 'email'];
 
 /**
  * Dapatkan client Google Drive untuk sebuah akun.
@@ -56,7 +56,7 @@ export async function getDriveClientWithRefresh(
 /** URL consent Google Drive (scope drive.file). userId dikirim via state → di-pas kembali di callback. */
 function getConnectUrl(userId: string): string {
   return googleDriveOAuthClient.generateAuthUrl({
-    scope: DRIVE_SCOPE,
+    scope: DRIVE_SCOPES,
     access_type: 'offline',
     prompt: 'consent',
     state: userId,

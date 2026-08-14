@@ -1,4 +1,6 @@
 // Middleware auth: memverifikasi JWT dari header `Authorization: Bearer <token>`.
+// Fallback: token dari cookie `footage_token` (dipakai alur OAuth yang butuh navigasi
+// browser full-page, mis. /drive-accounts/connect — browser tak bisa pasang header custom).
 // JWT berisi payload `{ sub: user.id }`; jika valid, `req.user.id` terisi lalu next().
 // Semua kegagalan → AppError 401 (format error konsisten ditangani errorHandler).
 import 'dotenv/config';
@@ -8,12 +10,31 @@ import { AppError } from '../utils/AppError.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 
-export function authMiddleware(req: Request, _res: Response, next: NextFunction) {
+const TOKEN_COOKIE = 'footage_token';
+
+function getToken(req: Request): string | null {
   const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  if (header?.startsWith('Bearer ')) {
+    return header.slice('Bearer '.length);
+  }
+  const rawCookie = req.headers.cookie;
+  if (rawCookie) {
+    const match = rawCookie
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${TOKEN_COOKIE}=`));
+    if (match) {
+      return decodeURIComponent(match.slice(TOKEN_COOKIE.length + 1));
+    }
+  }
+  return null;
+}
+
+export function authMiddleware(req: Request, _res: Response, next: NextFunction) {
+  const token = getToken(req);
+  if (!token) {
     throw new AppError(401, 'UNAUTHORIZED', 'Missing Bearer token');
   }
-  const token = header.slice('Bearer '.length);
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     if (typeof payload === 'object' && payload.sub) {
