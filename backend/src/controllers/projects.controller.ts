@@ -40,3 +40,18 @@ export async function remove(req: Request, res: Response) {
   await projectsService.deleteProject(req.user!.id, String(req.params.id));
   res.status(204).send();
 }
+
+/** List file di folder Drive project (real-time). */
+export async function driveFiles(req: Request, res: Response) {
+  res.json(await projectsService.getProjectDriveFiles(req.user!.id, String(req.params.id)));
+}
+
+/** Hapus file permanen dari Google Drive + bersihkan referensi di DB. */
+export async function deleteDriveFile(req: Request, res: Response) {
+  await projectsService.deleteProjectDriveFile(
+    req.user!.id,
+    String(req.params.id),
+    String(req.params.fileId),
+  );
+  res.status(204).send();
+}

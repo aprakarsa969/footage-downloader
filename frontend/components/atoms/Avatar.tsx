@@ -1,4 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -21,11 +22,12 @@ export type AvatarProps = {
 };
 
 export function Avatar({ src, alt, size, className }: AvatarProps) {
+  const [failed, setFailed] = useState(false);
   return (
     <div className={cn(avatarVariants({ size }), className)}>
-      {src ? (
+      {src && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} className="h-full w-full object-cover" />
+        <img src={src} alt={alt} onError={() => setFailed(true)} className="h-full w-full object-cover" />
       ) : (
         <span aria-hidden="true">{alt.charAt(0).toUpperCase()}</span>
       )}

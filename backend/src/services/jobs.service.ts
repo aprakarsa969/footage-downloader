@@ -1,77 +1,15 @@
-// Service Jobs: alur batch download, list/get job, retry, dan cancel.
-// Alur: user submit batch → job diinsert (pending, satu batchId) → di-enqueue ke BullMQ → worker yang proses.
-import { randomUUID } from 'node:crypto';
-import { enqueueJob } from '../workers/downloadJob.queue.js';
+// Service Jobs: list/get job, retry, dan cancel.
+// Batch intake dipindah ke batchIntake.ts (deep module).
 import {
   countDownloadJobsByProject,
-  createBatchJobs,
   findDownloadJobById,
   listDownloadJobsByProject,
   updateDownloadJob,
 } from '../repositories/downloadJob.repository.js';
 import { findProjectByIdAndUser } from '../repositories/project.repository.js';
+import { enqueueJob } from '../workers/downloadJob.queue.js';
 import { jobToResponse } from '../utils/responses.js';
 import { AppError } from '../utils/AppError.js';
-
-type CreateBatchInput = {
-  url: string;
-  mode?: string;
-  resolution?: string;
-  trim_start_seconds?: number;
-  trim_end_seconds?: number;
-}[];
-
-/**
- * Submit batch download. Setiap link diinsert sebagai job `pending` dengan batchId sama,
- * lalu semua job di-enqueue ke queue BullMQ untuk diproses worker asinkron.
- * platform diisi 'unknown' dulu (createManyAndReturn butuh nilai non-null), worker yang mengisi nilai asli.
- * Kalau enqueue gagal → job langsung ditandai failed (bukan menggagalkan seluruh batch).
- */
-async function createBatch(userId: string, projectId: string, links: CreateBatchInput) {
-  const project = await findProjectByIdAndUser(projectId, userId);
-  if (!project) {
-    throw new AppError(404, 'NOT_FOUND', 'Project not found');
-  }
-
-  const batchId = randomUUID();
-  const jobs = await createBatchJobs(
-    links.map((link) => ({
-      projectId,
-      sourceUrl: link.url,
-      platform: 'unknown',
-      mode: (link.mode as 'full' | 'timestamp') ?? 'full',
-      resolution: link.resolution ?? null,
-      trimStartSeconds: link.trim_start_seconds ?? null,
-      trimEndSeconds: link.trim_end_seconds ?? null,
-      batchId,
-    })),
-  );
-
-  await Promise.all(
-    jobs.map((job) => enqueueJob(job.id, projectId, userId).catch((err) => {
-      console.error(`[jobs] enqueue ${job.id} gagal:`, err);
-      return updateDownloadJob(job.id, {
-        status: 'failed',
-        errorMessage: 'Gagal menambahkan ke antrian',
-        finishedAt: new Date(),
-      });
-    })),
-  );
-
-  return {
-    batch_id: batchId,
-    project_id: projectId,
-    jobs: jobs.map((job) => ({
-      id: job.id,
-      url: job.sourceUrl,
-      mode: job.mode,
-      resolution: job.resolution,
-      trim_start_seconds: job.trimStartSeconds,
-      trim_end_seconds: job.trimEndSeconds,
-      status: job.status,
-    })),
-  };
-}
 
 /** List job satu project, paginated, opsional filter status. */
 async function listJobs(
@@ -165,4 +103,4 @@ async function cancelJob(userId: string, jobId: string) {
   );
 }
 
-export const jobsService = { createBatch, listJobs, getJob, retryJob, cancelJob };
+export const jobsService = { listJobs, getJob, retryJob, cancelJob };

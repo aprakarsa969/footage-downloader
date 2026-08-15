@@ -16,7 +16,7 @@ export function FloatingActionButton({ onClick }: FloatingActionButtonProps) {
     <motion.button
       type="button"
       onClick={onClick}
-      aria-label="Buat project baru"
+      aria-label="Create new project"
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ duration: 0.2, ease: "easeOut" }}

@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg-base: #101418;
-  --color-bg-surface: #171B20;
-  --color-bg-card: #1D232A;
-  --color-bg-elevated: #232B34;
-  --color-border: rgba(255,255,255,.06);
-  --color-border-hover: rgba(61,217,196,.35);
+  --color-bg-base: #0C1017;
+  --color-bg-surface: #141921;
+  --color-bg-card: #1A2130;
+  --color-bg-elevated: #232B36;
+  --color-border: rgba(255,255,255,.07);
+  --color-border-hover: rgba(61,214,196,.35);
   --color-text-primary: #F8FAFC;
   --color-text-secondary: #94A3B8;
   --color-text-muted: #64748B;
-  --color-primary: #39D6C3;
-  --color-primary-hover: #4BE4D1;
-  --color-primary-pressed: #2BC0AE;
+  --color-primary: #3DD9C4;
+  --color-primary-hover: #4FE8D4;
+  --color-primary-pressed: #2CC3B0;
   --color-status-success: #22C55E;
   --color-status-warning: #F5B041;
   --color-status-danger: #EF4444;
@@ -25,10 +25,10 @@
   --radius-modal: 24px;
   --radius-sidebar: 24px;
 
-  --shadow-card: 0 8px 24px rgba(0,0,0,.15);
-  --shadow-card-hover: 0 12px 32px rgba(0,0,0,.18);
+  --shadow-card: 0 8px 24px rgba(0,0,0,.18);
+  --shadow-card-hover: 0 12px 32px rgba(0,0,0,.22);
 
-  --font-heading: var(--font-outfit);
+  --font-heading: var(--font-inter-tight);
   --font-body: var(--font-figtree);
   --font-mono: var(--font-spline-mono);
 
@@ -50,10 +50,37 @@
 
 @utility glass-card {
   background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.05),
     0 10px 15px -3px rgba(0, 0, 0, 0.03);
+}
+
+@utility glass-card-accent {
+  background: rgba(61, 217, 196, 0.03);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(61, 217, 196, 0.12);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 10px 15px -3px rgba(0, 0, 0, 0.03);
+}
+
+@utility glass-card-strong {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 8px 16px -2px rgba(0, 0, 0, 0.08),
+    0 16px 24px -4px rgba(0, 0, 0, 0.04);
+}
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-bg-elevated) transparent;
+  }
 }

@@ -9,9 +9,8 @@ import { Icon } from "@/components/atoms/Icon";
 import { MonoText } from "@/components/atoms/MonoText";
 import { Spinner } from "@/components/atoms/Spinner";
 import { EmptyState } from "@/components/molecules/EmptyState";
-import { Navbar } from "@/components/organisms/Navbar";
 import { HistoryTable } from "@/components/organisms/HistoryTable";
-import { Sidebar } from "@/components/organisms/Sidebar";
+import { AppShell } from "@/components/templates/AppShell";
 import { api, getUser } from "@/lib/api";
 import { mapJobSummaryToHistoryEntry } from "@/lib/mappers";
 import { useJobActions } from "@/hooks/useJobActions";
@@ -21,7 +20,7 @@ import type { JobStatus } from "@/types/job";
 const PAGE_SIZE = 20;
 
 const STATUS_OPTIONS: { value: JobStatus | ""; label: string }[] = [
-  { value: "", label: "Semua status" },
+  { value: "", label: "All statuses" },
   { value: "pending", label: "Pending" },
   { value: "processing", label: "Processing" },
   { value: "done", label: "Done" },
@@ -34,7 +33,7 @@ function toIso(date: string, endOfDay: boolean): string {
 }
 
 const selectClassName =
-  "h-12 rounded-input border border-border bg-bg-surface px-3 text-body text-text-primary focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "h-10 rounded-xl border border-border bg-bg-surface px-3 text-helper text-text-primary focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors duration-hover";
 
 export default function HistoryPage() {
   const queryClient = useQueryClient();
@@ -74,42 +73,46 @@ export default function HistoryPage() {
 
   if (historyQuery.isPending) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-bg-base">
-        <Spinner size="lg" />
-        <p className="text-body text-text-secondary">Memuat riwayat...</p>
-      </div>
+      <AppShell userName="">
+        <div className="flex h-full items-center justify-center gap-4">
+          <Spinner size="lg" />
+          <p className="text-body text-text-secondary">Loading history...</p>
+        </div>
+      </AppShell>
     );
   }
 
   if (historyQuery.isError) {
     const error = historyQuery.error;
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-bg-base p-6">
-        <div className="w-full max-w-md rounded-card border border-status-danger bg-bg-card p-6 shadow-card">
-          <div className="flex items-center gap-2">
-            <Icon icon={AlertCircle} size={18} className="text-status-danger" />
-            <h2 className="font-heading text-card-title text-text-primary">
-              Gagal memuat riwayat
-            </h2>
+      <AppShell userName="">
+        <div className="flex items-center justify-center p-6">
+          <div className="glass-card w-full max-w-md rounded-2xl p-6">
+            <div className="flex items-center gap-2">
+              <Icon icon={AlertCircle} size={18} className="text-status-danger" />
+              <h2 className="font-heading text-card-title text-text-primary">
+                Failed to load history
+              </h2>
+            </div>
+            <p className="mt-2 text-body text-text-secondary">
+              {error instanceof Error ? error.message : "An error occurred"}
+            </p>
+            <Button
+              className="mt-4"
+              onClick={() =>
+                queryClient.invalidateQueries({ queryKey: ["history"] })
+              }
+            >
+              Try Again
+            </Button>
           </div>
-          <p className="mt-2 text-body text-text-secondary">
-            {error instanceof Error ? error.message : "Terjadi kesalahan"}
-          </p>
-          <Button
-            className="mt-4"
-            onClick={() =>
-              queryClient.invalidateQueries({ queryKey: ["history"] })
-            }
-          >
-            Coba Lagi
-          </Button>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   const user = getUser<ApiUser>();
-  const userName = user?.name || "Pengguna";
+  const userName = user?.name || "User";
 
   const projects = projectsQuery.data?.data ?? [];
   const data = historyQuery.data?.data ?? [];
@@ -130,116 +133,121 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Navbar userName={userName} userAvatar={user?.avatar_url ?? undefined} />
-        <main className="w-full flex-1 space-y-6 px-4 py-4">
-          <h1 className="font-heading text-page-title text-text-primary">Riwayat Download</h1>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              className={selectClassName}
-              value={status}
-              onChange={(e) => resetPage(setStatus)(e.target.value)}
-              aria-label="Filter status"
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className={selectClassName}
-              value={projectId}
-              onChange={(e) => resetPage(setProjectId)(e.target.value)}
-              aria-label="Filter project"
-            >
-              <option value="">Semua project</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className={selectClassName}
-              value={platform}
-              onChange={(e) => resetPage(setPlatform)(e.target.value)}
-              aria-label="Filter platform"
-            >
-              <option value="">Semua platform</option>
-              {platforms.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-
-            <input
-              type="date"
-              className={selectClassName}
-              value={from}
-              onChange={(e) => resetPage(setFrom)(e.target.value)}
-              aria-label="Dari tanggal"
-            />
-            <input
-              type="date"
-              className={selectClassName}
-              value={to}
-              onChange={(e) => resetPage(setTo)(e.target.value)}
-              aria-label="Sampai tanggal"
-            />
-          </div>
-
-          {entries.length === 0 ? (
-            <EmptyState
-              icon={History}
-              title="Tidak ada riwayat yang cocok"
-              description="Coba ubah filter pencarian"
-              action={
-                hasFilters ? (
-                  <Button size="sm" variant="secondary" onClick={clearFilters}>
-                    Bersihkan Filter
-                  </Button>
-                ) : undefined
-              }
-            />
-          ) : (
-            <HistoryTable entries={entries} onRetry={(entry) => retry(entry.id)} />
-          )}
-
-          <div className="flex items-center justify-between">
-            <MonoText className="text-caption text-text-muted">
-              {total} item
-            </MonoText>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Sebelumnya
-              </Button>
-              <MonoText className="text-caption text-text-secondary">
-                Hal {page} dari {totalPages}
-              </MonoText>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Berikutnya
-              </Button>
-            </div>
-          </div>
-        </main>
+    <AppShell userName={userName} userAvatar={user?.avatar_url ?? undefined}>
+      <div>
+        <h1 className="font-heading text-page-title text-text-primary">Download History</h1>
+        <p className="mt-1 text-body text-text-muted">Browse, filter, and retry past video download jobs.</p>
       </div>
-    </div>
+
+      <div className="glass-card-accent rounded-2xl p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            className={selectClassName}
+            value={status}
+            onChange={(e) => resetPage(setStatus)(e.target.value)}
+            aria-label="Filter status"
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className={selectClassName}
+            value={projectId}
+            onChange={(e) => resetPage(setProjectId)(e.target.value)}
+            aria-label="Filter project"
+          >
+            <option value="">All projects</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className={selectClassName}
+            value={platform}
+            onChange={(e) => resetPage(setPlatform)(e.target.value)}
+            aria-label="Filter platform"
+          >
+            <option value="">All platforms</option>
+            {platforms.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            className={selectClassName}
+            value={from}
+            onChange={(e) => resetPage(setFrom)(e.target.value)}
+            aria-label="From date"
+          />
+          <input
+            type="date"
+            className={selectClassName}
+            value={to}
+            onChange={(e) => resetPage(setTo)(e.target.value)}
+            aria-label="To date"
+          />
+
+          {hasFilters && (
+            <Button size="sm" variant="ghost" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {entries.length === 0 ? (
+        <EmptyState
+          icon={History}
+          title="No matching history"
+          description="Try adjusting your filters"
+          action={
+            hasFilters ? (
+              <Button size="sm" variant="secondary" onClick={clearFilters}>
+                Clear Filters
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <HistoryTable entries={entries} onRetry={(entry) => retry(entry.id)} />
+      )}
+
+      <div className="flex items-center justify-between">
+        <MonoText className="text-caption text-text-muted">
+          {total} items
+        </MonoText>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
+            Previous
+          </Button>
+          <MonoText className="text-caption text-text-secondary">
+            Page {page} of {totalPages}
+          </MonoText>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    </AppShell>
   );
 }

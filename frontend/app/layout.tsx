@@ -1,11 +1,11 @@
-import { Figtree, Outfit, Spline_Sans_Mono } from "next/font/google";
+import { Figtree, Inter_Tight, Spline_Sans_Mono } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "@/app/providers";
 
-const outfit = Outfit({
+const interTight = Inter_Tight({
   subsets: ["latin"],
-  variable: "--font-outfit",
+  variable: "--font-inter-tight",
 });
 const figtree = Figtree({
   subsets: ["latin"],
@@ -19,8 +19,8 @@ const splineMono = Spline_Sans_Mono({
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang="id"
-      className={`${outfit.variable} ${figtree.variable} ${splineMono.variable}`}
+      lang="en"
+      className={`${interTight.variable} ${figtree.variable} ${splineMono.variable}`}
     >
       <body className="font-body bg-bg-base text-text-primary antialiased">
         <Providers>{children}</Providers>

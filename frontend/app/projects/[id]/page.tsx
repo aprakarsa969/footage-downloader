@@ -1,8 +1,9 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertCircle, ExternalLink, X } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -19,7 +20,7 @@ import { api, getUser } from "@/lib/api";
 import { mapJobToJob } from "@/lib/mappers";
 import { useToastStore } from "@/stores/toast";
 import type {
-  ApiDriveAccount,
+  ApiDriveFile,
   ApiJob,
   ApiProject,
   ApiProjectDetail,
@@ -30,24 +31,8 @@ import type {
   Paginated,
 } from "@/types/api";
 
-function activityMessage(job: ApiJob): string {
-  const title = job.video_title ?? job.source_url;
-  switch (job.status) {
-    case "done":
-      return `${title} selesai`;
-    case "failed":
-      return `${title} gagal${job.error_message ? ` (${job.error_message})` : ""}`;
-    case "processing":
-      return `Download berjalan: ${title}`;
-    case "pending":
-      return `Menunggu antrian: ${title}`;
-    case "cancelled":
-      return `${title} dibatalkan`;
-  }
-}
-
 const renameSchema = z.object({
-  name: z.string().trim().min(1, "Nama project wajib diisi"),
+  name: z.string().trim().min(1, "Project name is required"),
 });
 
 type RenameProjectModalProps = {
@@ -75,14 +60,14 @@ function RenameProjectModal({
   });
 
   return (
-    <Modal open={open} onClose={onClose} title="Ubah Nama Project">
+    <Modal open={open} onClose={onClose} title="Rename Project">
       <form
         className="space-y-4"
         onSubmit={handleSubmit((values) => onSubmit(values.name))}
       >
         <div className="space-y-1">
           <label htmlFor="rename-project" className="text-caption text-text-secondary">
-            Nama Project
+            Project Name
           </label>
           <Input
             id="rename-project"
@@ -100,12 +85,12 @@ function RenameProjectModal({
           ) : null}
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Batal
-          </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Menyimpan..." : "Simpan"}
-          </Button>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Saving..." : "Save"}
+            </Button>
         </div>
       </form>
     </Modal>
@@ -126,19 +111,126 @@ function DeleteProjectModal({
   onConfirm,
 }: DeleteProjectModalProps) {
   return (
-    <Modal open={open} onClose={onClose} title="Hapus Project?">
+    <Modal open={open} onClose={onClose} title="Delete Project?">
       <p className="text-body text-text-secondary">
-        Project akan dihapus. Folder dan file di Google Drive tidak ikut dihapus.
+        This project will be deleted. Folders and files in Google Drive will not be removed.
       </p>
       <div className="mt-5 flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onClose}>
-          Batal
+          Cancel
         </Button>
         <Button type="button" variant="danger" onClick={onConfirm} disabled={isPending}>
-          {isPending ? "Menghapus..." : "Hapus Project"}
+          {isPending ? "Deleting..." : "Delete Project"}
         </Button>
       </div>
     </Modal>
+  );
+}
+
+type DeleteFileModalProps = {
+  open: boolean;
+  onClose: () => void;
+  fileName: string;
+  isPending: boolean;
+  onConfirm: () => void;
+};
+
+function DeleteFileModal({
+  open,
+  onClose,
+  fileName,
+  isPending,
+  onConfirm,
+}: DeleteFileModalProps) {
+  return (
+    <Modal open={open} onClose={onClose} title="Delete File from Google Drive?">
+      <p className="text-body text-text-secondary">
+        Are you sure you want to delete <strong className="text-text-primary">{fileName}</strong>?
+        This action will permanently remove the file from your Google Drive.
+      </p>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="button" variant="danger" onClick={onConfirm} disabled={isPending}>
+          {isPending ? "Deleting..." : "Delete File"}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+type VideoPreviewModalProps = {
+  open: boolean;
+  onClose: () => void;
+  file: ApiDriveFile | null;
+};
+
+function VideoPreviewModal({ open, onClose, file }: VideoPreviewModalProps) {
+  if (!file) return null;
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 bg-black/70"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={file.name}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="relative w-full max-w-4xl overflow-hidden rounded-modal border border-border bg-bg-elevated shadow-card"
+          >
+            <div className="flex items-center justify-between gap-4 border-b border-border/50 px-6 py-4">
+              <h2 className="truncate font-heading text-card-title text-text-primary">
+                {file.name}
+              </h2>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="shrink-0 rounded-button p-2 text-text-secondary transition-colors duration-hover hover:text-text-primary"
+              >
+                <Icon icon={X} size={18} />
+              </button>
+            </div>
+            <div className="relative w-full bg-black">
+              <iframe
+                src={`https://drive.google.com/file/d/${file.id}/preview`}
+                className="h-[500px] w-full"
+                allow="autoplay; encrypted-media"
+                title={file.name}
+              />
+            </div>
+            <div className="flex items-center justify-between border-t border-border/50 px-6 py-3">
+              <span className="text-caption text-text-muted">{file.name}</span>
+              {file.webViewLink ? (
+                <a
+                  href={file.webViewLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-button text-text-secondary transition-colors duration-hover hover:text-primary"
+                >
+                  <span className="text-helper font-medium">Open in Drive</span>
+                  <Icon icon={ExternalLink} size={12} />
+                </a>
+              ) : null}
+            </div>
+          </motion.div>
+        </div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -149,6 +241,9 @@ export default function ProjectDetailPage() {
   const { retry, cancel } = useJobActions();
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteFileOpen, setDeleteFileOpen] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<ApiDriveFile | null>(null);
+  const [previewFile, setPreviewFile] = useState<ApiDriveFile | null>(null);
 
   const projectQuery = useQuery({
     queryKey: ["project", id],
@@ -163,9 +258,10 @@ export default function ProjectDetailPage() {
     enabled: !!id,
   });
 
-  const driveAccountsQuery = useQuery({
-    queryKey: ["drive-accounts"],
-    queryFn: () => api<ApiDriveAccount[]>("/drive-accounts"),
+  const driveFilesQuery = useQuery({
+    queryKey: ["project-drive-files", id],
+    queryFn: () => api<ApiDriveFile[]>(`/projects/${id}/drive-files`),
+    enabled: !!id,
   });
 
   const submitBatch = useMutation({
@@ -176,7 +272,7 @@ export default function ProjectDetailPage() {
       });
       const invalid = validation.filter((result) => "error" in result);
       if (invalid.length > 0) {
-        throw new Error(`URL tidak valid: ${invalid.map((r) => r.url).join(", ")}`);
+        throw new Error(`Invalid URL: ${invalid.map((r) => r.url).join(", ")}`);
       }
       return api<BatchCreateResponse>(`/projects/${id}/jobs`, {
         method: "POST",
@@ -185,12 +281,13 @@ export default function ProjectDetailPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["project-jobs", id] });
+      queryClient.invalidateQueries({ queryKey: ["project-drive-files", id] });
       queryClient.invalidateQueries({ queryKey: ["project", id] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["history"] });
       useToastStore
         .getState()
-        .push(`${data.jobs.length} link ditambahkan ke antrian`);
+        .push(`${data.jobs.length} links added to queue`);
     },
     onError: (error: Error) =>
       useToastStore.getState().push(error.message, "error"),
@@ -206,7 +303,7 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["project", id] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      useToastStore.getState().push("Nama project diperbarui");
+      useToastStore.getState().push("Project renamed successfully");
       setRenameOpen(false);
     },
     onError: (error: Error) =>
@@ -218,20 +315,33 @@ export default function ProjectDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      useToastStore.getState().push("Project dihapus");
+      useToastStore.getState().push("Project deleted");
       router.push("/projects");
     },
     onError: (error: Error) =>
       useToastStore.getState().push(error.message, "error"),
   });
 
-  const queries = [projectQuery, jobsQuery, driveAccountsQuery];
+  const deleteFileMutation = useMutation({
+    mutationFn: (fileId: string) =>
+      api<void>(`/projects/${id}/drive-files/${fileId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-drive-files", id] });
+      useToastStore.getState().push("File deleted from Google Drive");
+      setDeleteFileOpen(false);
+      setFileToDelete(null);
+    },
+    onError: (error: Error) =>
+      useToastStore.getState().push(error.message, "error"),
+  });
+
+  const queries = [projectQuery, jobsQuery];
 
   if (queries.some((q) => q.isPending)) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-bg-base">
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-bg-base">
         <Spinner size="lg" />
-        <p className="text-body text-text-secondary">Memuat project...</p>
+        <p className="text-body text-text-secondary">Loading project...</p>
       </div>
     );
   }
@@ -239,16 +349,16 @@ export default function ProjectDetailPage() {
   if (queries.some((q) => q.isError)) {
     const error = queries.find((q) => q.isError)?.error;
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-bg-base p-6">
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-bg-base p-6">
         <div className="w-full max-w-md rounded-card border border-status-danger bg-bg-card p-6 shadow-card">
           <div className="flex items-center gap-2">
             <Icon icon={AlertCircle} size={18} className="text-status-danger" />
             <h2 className="font-heading text-card-title text-text-primary">
-              Gagal memuat project
+              Failed to load project
             </h2>
           </div>
           <p className="mt-2 text-body text-text-secondary">
-            {error instanceof Error ? error.message : "Terjadi kesalahan"}
+            {error instanceof Error ? error.message : "Something went wrong"}
           </p>
           <Button
             className="mt-4"
@@ -258,7 +368,7 @@ export default function ProjectDetailPage() {
               })
             }
           >
-            Coba Lagi
+            Try Again
           </Button>
         </div>
       </div>
@@ -266,31 +376,16 @@ export default function ProjectDetailPage() {
   }
 
   const user = getUser<ApiUser>();
-  const userName = user?.name || "Pengguna";
+  const userName = user?.name || "User";
 
   const project = projectQuery.data!;
   const jobsData = jobsQuery.data?.data ?? [];
   const jobs = jobsData.map(mapJobToJob);
-  const driveAccounts = driveAccountsQuery.data ?? [];
+  const driveFiles = driveFilesQuery.data ?? [];
 
-  const account =
-    driveAccounts.find((a) => a.is_default) ?? driveAccounts[0] ?? null;
-  const storage = {
-    usedBytes: Number(account?.storage_used_bytes ?? 0),
-    totalBytes: Number(account?.storage_total_bytes ?? 0),
-  };
-
-  const recentActivity = [...jobsData]
-    .sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    )
-    .slice(0, 5)
-    .map((job) => ({
-      id: job.id,
-      message: activityMessage(job),
-      createdAt: job.created_at,
-    }));
+  const activeJobs = jobs.filter(
+    (j) => j.status === "pending" || j.status === "processing",
+  );
 
   return (
     <>
@@ -299,20 +394,19 @@ export default function ProjectDetailPage() {
         userAvatar={user?.avatar_url ?? undefined}
         projectName={project.name}
         driveFolderUrl={project.drive_folder_url}
-        storage={storage}
-        statistics={{
-          pending: project.job_status_summary.pending,
-          processing: project.job_status_summary.processing,
-          done: project.job_status_summary.done,
-          failed: project.job_status_summary.failed,
-        }}
-        jobs={jobs}
-        recentActivity={recentActivity}
+        activeJobs={activeJobs}
+        driveFiles={driveFiles}
         onRetryJob={(job) => retry(job.id)}
         onCancelJob={(job) => cancel(job.id)}
         onSubmitLinks={(urls) => submitBatch.mutate(urls)}
         onRenameProject={() => setRenameOpen(true)}
         onDeleteProject={() => setDeleteOpen(true)}
+        onRefreshDriveFiles={() => driveFilesQuery.refetch()}
+        onDeleteFile={(file) => {
+          setFileToDelete(file);
+          setDeleteFileOpen(true);
+        }}
+        onPreviewFile={(file) => setPreviewFile(file)}
       />
       <RenameProjectModal
         open={renameOpen}
@@ -326,6 +420,23 @@ export default function ProjectDetailPage() {
         onClose={() => setDeleteOpen(false)}
         isPending={deleteMutation.isPending}
         onConfirm={() => deleteMutation.mutate()}
+      />
+      <DeleteFileModal
+        open={deleteFileOpen}
+        onClose={() => {
+          setDeleteFileOpen(false);
+          setFileToDelete(null);
+        }}
+        fileName={fileToDelete?.name ?? ""}
+        isPending={deleteFileMutation.isPending}
+        onConfirm={() => {
+          if (fileToDelete) deleteFileMutation.mutate(fileToDelete.id);
+        }}
+      />
+      <VideoPreviewModal
+        open={previewFile !== null}
+        onClose={() => setPreviewFile(null)}
+        file={previewFile}
       />
     </>
   );

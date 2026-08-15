@@ -63,6 +63,7 @@ function makeHarness(opts: HarnessOpts = {}) {
     done: [] as unknown[],
     failed: [] as unknown[],
     batchCompleted: [] as unknown[],
+    sentinelNotify: [] as { batchId: string | null; projectId: string; userId: string }[],
   };
 
   const downloader = {
@@ -120,7 +121,7 @@ function makeHarness(opts: HarnessOpts = {}) {
     findDriveAccountByIdAndUser: async () => state.account,
   };
 
-  const pipeline = createDownloadPipeline({ downloader, trimmer, uploader, emitter, store });
+  const pipeline = createDownloadPipeline({ downloader, trimmer, uploader, emitter, store, sentinel: { notifyJobFinished: async (batchId, projectId, userId) => { calls.sentinelNotify.push({ batchId, projectId, userId }); } } });
   return { pipeline, state, calls, job };
 }
 
@@ -191,27 +192,27 @@ describe('pipeline download', () => {
     assert.equal(calls.upload[0].filePath, path.join(JOB_DIR, 'out.mp4'));
   });
 
-  it('batch selesai (remaining 0) → notifikasi + emit batch:completed', async () => {
+  it('batch selesai (remaining 0) → sentinel dipanggil dengan batchId', async () => {
     const job = makeJob({ batchId: 'batch-1' });
-    const { pipeline, state, calls } = makeHarness({
+    const { pipeline, calls } = makeHarness({
       job,
       remainingByBatch: { 'batch-1': 0 },
       doneByBatch: { 'batch-1': 2 },
       failedByBatch: { 'batch-1': 1 },
     });
     await pipeline.processJob(PROCESS);
-    assert.equal(state.notifications.length, 1);
-    assert.equal(state.notifications[0].message, 'Batch download selesai: 2 sukses, 1 gagal');
-    assert.equal(calls.batchCompleted.length, 1);
-    assert.deepEqual(calls.batchCompleted[0], { batchId: 'batch-1', projectId: 'proj-1', total: 3, done: 2, failed: 1 });
+    assert.equal(calls.sentinelNotify.length, 1);
+    assert.equal(calls.sentinelNotify[0].batchId, 'batch-1');
+    assert.equal(calls.sentinelNotify[0].projectId, 'proj-1');
+    assert.equal(calls.sentinelNotify[0].userId, 'user-1');
   });
 
-  it('batch belum selesai (remaining > 0) → tanpa notifikasi', async () => {
+  it('batch belum selesai (remaining > 0) → sentinel dipanggil tapi no-op', async () => {
     const job = makeJob({ batchId: 'batch-1' });
-    const { pipeline, state, calls } = makeHarness({ job, remainingByBatch: { 'batch-1': 1 } });
+    const { pipeline, calls } = makeHarness({ job, remainingByBatch: { 'batch-1': 1 } });
     await pipeline.processJob(PROCESS);
-    assert.equal(state.notifications.length, 0);
-    assert.equal(calls.batchCompleted.length, 0);
+    assert.equal(calls.sentinelNotify.length, 1);
+    assert.equal(calls.sentinelNotify[0].batchId, 'batch-1');
   });
 
   it('akun Drive hilang → status failed dengan pesan spesifik', async () => {

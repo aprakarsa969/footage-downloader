@@ -58,7 +58,7 @@ export default function DashboardPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-bg-base">
         <Spinner size="lg" />
-        <p className="text-body text-text-secondary">Memuat dashboard...</p>
+        <p className="text-body text-text-secondary">Loading dashboard...</p>
       </div>
     );
   }
@@ -71,17 +71,17 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Icon icon={AlertCircle} size={18} className="text-status-danger" />
             <h2 className="font-heading text-card-title text-text-primary">
-              Gagal memuat dashboard
+              Failed to load dashboard
             </h2>
           </div>
           <p className="mt-2 text-body text-text-secondary">
-            {error instanceof Error ? error.message : "Terjadi kesalahan"}
+            {error instanceof Error ? error.message : "Something went wrong"}
           </p>
           <Button
             className="mt-4"
             onClick={() => queryClient.invalidateQueries()}
           >
-            Coba Lagi
+            Try Again
           </Button>
         </div>
       </div>
@@ -89,7 +89,7 @@ export default function DashboardPage() {
   }
 
   const user = getUser<ApiUser>();
-  const userName = user?.name || "Pengguna";
+  const userName = user?.name || "User";
 
   return (
     <>

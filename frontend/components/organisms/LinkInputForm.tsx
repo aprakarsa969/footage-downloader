@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, X } from "lucide-react";
+import { Plus, RotateCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
@@ -21,10 +21,10 @@ import type {
 
 const timeSchema = z
   .string()
-  .regex(/^\d+:\d{2}$/, "Gunakan format m:ss");
+  .regex(/^\d+:\d{2}$/, "Use format m:ss");
 
 const linkRowSchema = z.object({
-  url: z.string().min(1, "URL wajib diisi").url("Format URL tidak valid"),
+  url: z.string().min(1, "URL is required").url("Invalid URL format"),
   mode: z.enum(["full", "timestamp"]),
   trimStart: timeSchema,
   trimEnd: timeSchema,
@@ -40,7 +40,7 @@ const linkSchema = z.object({
       if (start != null && end != null && start >= end) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "End harus lebih besar dari Start",
+          message: "End must be greater than Start",
           path: ["links", index, "trimEnd"],
         });
       }
@@ -81,7 +81,7 @@ function LinkResultPreview({ result }: { result?: LinkResult }) {
     return (
       <p className="flex items-center gap-1.5 text-helper text-text-muted">
         <Spinner size="sm" className="text-text-muted" />
-        Memeriksa link...
+        Checking link...
       </p>
     );
   }
@@ -113,6 +113,20 @@ function LinkResultPreview({ result }: { result?: LinkResult }) {
       </div>
     </div>
   );
+}
+
+async function validateUrl(url: string): Promise<LinkResult> {
+  try {
+    const [result] = await api<ApiValidateResult[]>("/links/validate", {
+      method: "POST",
+      body: { urls: [url] },
+    });
+    return "error" in result
+      ? { status: "invalid", error: result.error.message }
+      : { status: "valid", meta: result };
+  } catch {
+    return { status: "invalid", error: "Failed to check link" };
+  }
 }
 
 export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
@@ -159,29 +173,20 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
       timers.current[url] = setTimeout(() => {
         void (async () => {
           setResults((prev) => ({ ...prev, [url]: { status: "checking" } }));
-          try {
-            const [result] = await api<ApiValidateResult[]>("/links/validate", {
-              method: "POST",
-              body: { urls: [url] },
-            });
-            setResults((prev) => ({
-              ...prev,
-              [url]:
-                "error" in result
-                  ? { status: "invalid", error: result.error.message }
-                  : { status: "valid", meta: result },
-            }));
-          } catch {
-            setResults((prev) => ({
-              ...prev,
-              [url]: { status: "invalid", error: "Gagal memeriksa link" },
-            }));
-          }
+          const result = await validateUrl(url);
+          setResults((prev) => ({ ...prev, [url]: result }));
           delete timers.current[url];
         })();
       }, 600);
     }
   }, [urls, results]);
+
+  const handleRecheck = async (url: string) => {
+    if (!url) return;
+    setResults((prev) => ({ ...prev, [url]: { status: "checking" } }));
+    const result = await validateUrl(url);
+    setResults((prev) => ({ ...prev, [url]: result }));
+  };
 
   const hasInvalid = fields.some((_, index) => {
     const row = errors.links?.[index];
@@ -214,6 +219,7 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
           const result = results[url];
           const availableResolutions =
             result?.status === "valid" ? result.meta.availableResolutions : [];
+          const isChecking = result?.status === "checking";
           return (
             <div key={field.id} className="space-y-1.5 rounded-card border border-border bg-bg-card p-3">
               <div className="flex items-start gap-2">
@@ -225,8 +231,22 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
                 />
                 <button
                   type="button"
+                  onClick={() => handleRecheck(url)}
+                  disabled={!url || Boolean(isChecking)}
+                  aria-label="Re-check link"
+                  title="Re-check link"
+                  className="rounded-button p-3 text-text-muted transition-colors duration-hover hover:text-primary disabled:opacity-50"
+                >
+                  <Icon
+                    icon={RotateCw}
+                    size={18}
+                    className={isChecking ? "animate-spin text-primary" : undefined}
+                  />
+                </button>
+                <button
+                  type="button"
                   onClick={() => remove(index)}
-                  aria-label="Hapus link"
+                  aria-label="Remove link"
                   className="rounded-button p-3 text-text-muted transition-colors duration-hover hover:text-status-danger"
                 >
                   <Icon icon={X} size={18} />
@@ -246,7 +266,7 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
                 {mode === "timestamp" ? (
                   <>
                     <Input
-                      aria-label="Mulai (m:ss)"
+                      aria-label="Start (m:ss)"
                       placeholder="0:00"
                       className="w-24"
                       aria-invalid={Boolean(errors.links?.[index]?.trimStart)}
@@ -254,7 +274,7 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
                     />
                     <span className="text-text-muted">–</span>
                     <Input
-                      aria-label="Selesai (m:ss)"
+                      aria-label="End (m:ss)"
                       placeholder="1:30"
                       className="w-24"
                       aria-invalid={Boolean(errors.links?.[index]?.trimEnd)}
@@ -265,7 +285,7 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
 
                 {availableResolutions.length > 0 ? (
                   <select
-                    aria-label="Resolusi"
+                    aria-label="Resolution"
                     className={selectClassName}
                     {...register(`links.${index}.resolution`)}
                   >
@@ -314,10 +334,10 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
           }
           icon={Plus}
         >
-          Tambah Link Lain
+          Add Another Link
         </Button>
         <Button type="submit" disabled={fields.length === 0 || hasInvalid}>
-          Download Semua
+          Download All
         </Button>
       </div>
     </form>

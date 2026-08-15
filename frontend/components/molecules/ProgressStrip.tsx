@@ -32,7 +32,7 @@ export function ProgressStrip({ percent, decimals, remaining, className }: Progr
         <MonoText className="text-caption text-text-secondary">{label}%</MonoText>
       </div>
       {remaining ? (
-        <MonoText className="text-caption text-text-muted">{remaining} tersisa</MonoText>
+        <MonoText className="text-caption text-text-muted">{remaining} remaining</MonoText>
       ) : null}
     </div>
   );

@@ -65,11 +65,11 @@ export function HistoryCardList({ entries, onRetry }: HistoryCardListProps) {
                   href={entry.driveFileUrl}
                   target="_blank"
                   rel="noreferrer"
-                  aria-label="Buka file di Drive"
+                  aria-label="Open file in Drive"
                   className="inline-flex items-center gap-1.5 rounded-button bg-bg-surface px-3 py-2 text-caption text-text-secondary transition-colors duration-hover hover:text-primary"
                 >
                   <Icon icon={ExternalLink} size={16} />
-                  Buka di Drive
+                  Open in Drive
                 </a>
               ) : null}
             </div>

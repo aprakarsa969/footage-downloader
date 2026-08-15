@@ -12,5 +12,7 @@ export type Job = {
   progressPercent: number;
   stage?: string | null;
   driveFileUrl?: string | null;
+  fileName?: string | null;
+  createdAt?: string;
   errorMessage?: string | null;
 };

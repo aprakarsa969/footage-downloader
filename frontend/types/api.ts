@@ -189,3 +189,13 @@ export type BatchCompletedEvent = {
   done: number;
   failed: number;
 };
+
+export type ApiDriveFile = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: string | null;
+  createdTime: string;
+  thumbnailLink: string | null;
+  webViewLink: string | null;
+};
