@@ -7,6 +7,7 @@ import { useState } from "react";
 import { SettingsTemplate } from "@/components/templates/SettingsTemplate";
 import { api, clearAuth, getUser, setUser } from "@/lib/api";
 import { disconnectSocket } from "@/lib/socket";
+import { useToastStore } from "@/stores/toast";
 import type { ApiUser } from "@/types/api";
 
 export default function SettingsPage() {
@@ -28,7 +29,7 @@ export default function SettingsPage() {
 
   return (
     <SettingsTemplate
-      userName={user?.name || "Pengguna"}
+      userName={user?.name || "User"}
       userAvatar={user?.avatar_url ?? undefined}
       name={name}
       email={user?.email ?? ""}
@@ -39,6 +40,7 @@ export default function SettingsPage() {
       onToggleInappNotif={() => setNotifInappEnabled((v) => !v)}
       onSave={() => {
         if (user) setUser({ ...user, name });
+        useToastStore.getState().push("Settings saved successfully");
       }}
       onLogout={() => logoutMutation.mutate()}
     />

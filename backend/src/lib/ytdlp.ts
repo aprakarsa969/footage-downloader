@@ -1,8 +1,11 @@
 // Wrapper yt-dlp (binary eksternal, bukan dependency npm).
 // Dua operasi: fetchVideoMetadata (info video) dan downloadVideo (unduh full atau segmen range).
 // Penting: timeout metadata (60s) dan download (30 menit) dipisah — download video besar butuh waktu lama.
+// Cookie TikTok: set TIKTOK_COOKIES_BROWSER (chromium/firefox) atau TIKTOK_COOKIES_FILE
+// agar video sensitif/age-gated bisa diunduh. Lihat .env.example.
 import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -10,6 +13,47 @@ const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 32 * 1024 * 1024;
 const METADATA_TIMEOUT_MS = 60 * 1000;
 const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+
+const DESKTOP_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+/** Jalankan yt-dlp dan return stdout. Error dilempar mentah (classifyError di pemanggil). */
+async function execYtdlp(args: string[], timeout: number): Promise<string> {
+  const result = await execFileAsync('yt-dlp', args, { maxBuffer: MAX_BUFFER, timeout });
+  return result.stdout;
+}
+
+/**
+ * Bangun argumen cookies untuk yt-dlp — hanya untuk URL TikTok/Douyin.
+ * Prioritas: TIKTOK_COOKIES_BROWSER > TIKTOK_COOKIES_FILE.
+ * Cookie TikTok tidak boleh dikirim ke platform lain (YouTube, dst.) karena mengganggu format selection.
+ */
+function getCookieArgs(url: string): string[] {
+  if (!/tiktok\.com|douyin\.com/i.test(url)) return [];
+
+  const browser = process.env.TIKTOK_COOKIES_BROWSER;
+  if (browser) return ['--cookies-from-browser', browser];
+
+  const file = process.env.TIKTOK_COOKIES_FILE;
+  if (!file) return [];
+  if (!existsSync(file)) {
+    console.warn(`[ytdlp] TIKTOK_COOKIES_FILE="${file}" tidak ditemukan — yt-dlp berjalan tanpa cookies`);
+    return [];
+  }
+  return ['--cookies', file];
+}
+
+/**
+ * Argumen ekstra untuk TikTok/Douyin: User-Agent & Referer modern
+ * agar request tidak diblokir anti-bot Cloudflare/Akamai TikTok.
+ */
+function getTikTokExtraArgs(url: string): string[] {
+  if (!/tiktok\.com|douyin\.com/i.test(url)) return [];
+  return [
+    '--user-agent', DESKTOP_USER_AGENT,
+    '--referer', 'https://www.tiktok.com/',
+  ];
+}
 
 export type VideoMetadata = {
   title: string;
@@ -43,12 +87,10 @@ type YtDlpInfo = {
 export async function fetchVideoMetadata(url: string): Promise<VideoMetadata> {
   let stdout: string;
   try {
-    const result = await execFileAsync(
-      'yt-dlp',
-      ['--dump-json', '--no-playlist', '--no-warnings', url],
-      { maxBuffer: MAX_BUFFER, timeout: METADATA_TIMEOUT_MS },
+    stdout = await execYtdlp(
+      ['--dump-json', '--no-playlist', '--no-warnings', '--extractor-retries', '3', ...getCookieArgs(url), ...getTikTokExtraArgs(url), url],
+      METADATA_TIMEOUT_MS,
     );
-    stdout = result.stdout;
   } catch (err) {
     throw new YtDlpError(classifyError(err));
   }
@@ -92,6 +134,12 @@ function classifyError(err: unknown): string {
   ) {
     return 'Video tidak tersedia atau privat';
   }
+  if (/comfortable for some audiences|Log in for access|log in to confirm/i.test(stderr)) {
+    return 'Video dikunci TikTok (perlu login) — periksa TIKTOK_COOKIES_FILE';
+  }
+  if (/Unable to extract universal data for rehydration/i.test(stderr)) {
+    return 'Gagal mengambil data dari TikTok, coba lagi';
+  }
   if (/download sections feature is not supported|download-sections/i.test(stderr)) {
     return 'Platform tidak mendukung download per segmen (mode timestamp)';
   }
@@ -127,6 +175,10 @@ export async function downloadVideo(
     'mp4',
     '--no-progress',
     '--no-playlist',
+    '--extractor-retries',
+    '3',
+    ...getCookieArgs(url),
+    ...getTikTokExtraArgs(url),
   ];
 
   if (options.startSeconds !== undefined && options.endSeconds !== undefined) {
@@ -140,11 +192,7 @@ export async function downloadVideo(
 
   let stdout: string;
   try {
-    const result = await execFileAsync('yt-dlp', args, {
-      maxBuffer: MAX_BUFFER,
-      timeout: DOWNLOAD_TIMEOUT_MS,
-    });
-    stdout = result.stdout;
+    stdout = await execYtdlp(args, DOWNLOAD_TIMEOUT_MS);
   } catch (err) {
     throw new YtDlpError(classifyError(err));
   }

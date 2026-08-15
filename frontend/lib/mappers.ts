@@ -51,6 +51,8 @@ export function mapJobToJob(job: ApiJob): Job {
     progressPercent: job.progress_percent,
     stage: null,
     driveFileUrl: job.drive_file_url,
+    fileName: job.file_name,
+    createdAt: job.created_at,
     errorMessage: job.error_message,
   };
 }

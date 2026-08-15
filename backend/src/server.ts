@@ -2,13 +2,14 @@
 // Pipeline download di-build di sini dengan adapter produksi, lalu di-inject ke worker.
 import 'dotenv/config';
 import app from './app.js';
+import { redisConnection } from './config/redis.js';
 import { initSocket, emitToUser } from './websocket/socket.js';
 import { startDownloadWorker } from './workers/downloadJob.worker.js';
 import { createDownloadPipeline } from './workers/downloadPipeline.js';
+import { createBatchSentinel } from './workers/batchSentinel.js';
 import { downloadVideo, fetchVideoMetadata } from './lib/ytdlp.js';
 import { probeFirstKeyframe, trimVideo } from './lib/ffmpeg.js';
-import { uploadFile } from './lib/googleDrive.js';
-import { getDriveClientWithRefresh } from './services/driveAccounts.service.js';
+import { driveStorageAdapter } from './services/driveStorageAdapter.js';
 import {
   countDownloadJobsByBatchAndStatus,
   findDownloadJobById,
@@ -19,6 +20,24 @@ import { incrementProjectFootageCount } from './repositories/project.repository.
 import { createNotification } from './repositories/notification.repository.js';
 
 const PORT = Number(process.env.PORT) || 4000;
+
+// Batch completion sentinel: atomic lock via Redis SET NX guarantees exactly-once notification.
+const batchSentinel = createBatchSentinel({
+  countByBatchAndStatus: countDownloadJobsByBatchAndStatus,
+  acquireLock: (batchId) =>
+    redisConnection.set(`batch:sentinel:${batchId}`, '1', 'EX', 60, 'NX').then((v) => v === 'OK'),
+  createNotification: async (userId, projectId, batchId, message) => {
+    await createNotification(userId, projectId, batchId, message);
+  },
+  batchCompleted: (userId, d) =>
+    emitToUser(userId, 'batch:completed', {
+      batch_id: d.batchId,
+      project_id: d.projectId,
+      total: d.total,
+      done: d.done,
+      failed: d.failed,
+    }),
+});
 
 // Build pipeline: satu-satunya tempat adapter produksi disambungkan ke logic inti.
 const pipeline = createDownloadPipeline({
@@ -31,10 +50,7 @@ const pipeline = createDownloadPipeline({
     trim: trimVideo,
   },
   uploader: {
-    upload: async (account, folderId, filePath) => {
-      const client = await getDriveClientWithRefresh(account);
-      return uploadFile(client, folderId, filePath);
-    },
+    upload: (account, folderId, filePath) => driveStorageAdapter.uploadFile(account, folderId, filePath),
   },
   emitter: {
     progress: (userId, jobId, projectId, percent, stage) =>
@@ -77,6 +93,7 @@ const pipeline = createDownloadPipeline({
     createNotification,
     findDriveAccountByIdAndUser,
   },
+  sentinel: batchSentinel,
 });
 
 // Worker berjalan di proses yang sama dengan HTTP server (dev/self-host).

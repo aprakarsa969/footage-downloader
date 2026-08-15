@@ -78,6 +78,48 @@ export async function createDriveFolder(
   return { id: res.data.id, url: res.data.webViewLink };
 }
 
+export type DriveFolderFile = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: string | null;
+  createdTime: string;
+  thumbnailLink: string | null;
+  webViewLink: string | null;
+};
+
+/** List semua file (non-folder, non-trashed) di dalam folder Drive tertentu. */
+export async function listFolderFiles(
+  client: DriveOAuthClient,
+  folderId: string,
+): Promise<DriveFolderFile[]> {
+  const drive = google.drive({ version: 'v3', auth: client });
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`,
+    fields: 'files(id, name, mimeType, size, createdTime, thumbnailLink, webViewLink)',
+    orderBy: 'createdTime desc',
+    pageSize: 1000,
+  });
+  return (res.data.files ?? []).map((f) => ({
+    id: f.id ?? '',
+    name: f.name ?? '',
+    mimeType: f.mimeType ?? '',
+    size: f.size ?? null,
+    createdTime: f.createdTime ?? new Date().toISOString(),
+    thumbnailLink: f.thumbnailLink ?? null,
+    webViewLink: f.webViewLink ?? null,
+  }));
+}
+
+/** Hapus file secara permanen dari Google Drive. */
+export async function deleteDriveFile(
+  client: DriveOAuthClient,
+  fileId: string,
+): Promise<void> {
+  const drive = google.drive({ version: 'v3', auth: client });
+  await drive.files.delete({ fileId });
+}
+
 /** Upload file lokal ke folder Drive via streaming (resumable), nama = basename file. */
 export async function uploadFile(
   client: DriveOAuthClient,

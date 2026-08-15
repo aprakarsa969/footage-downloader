@@ -2,10 +2,12 @@
 
 import { Avatar } from "@/components/atoms/Avatar";
 import { Button } from "@/components/atoms/Button";
+import { Icon } from "@/components/atoms/Icon";
 import { Input } from "@/components/atoms/Input";
-import { Navbar } from "@/components/organisms/Navbar";
-import { Sidebar } from "@/components/organisms/Sidebar";
+import { AppShell } from "@/components/templates/AppShell";
 import { cn } from "@/lib/utils";
+import { Bell, LogOut, User } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export type SettingsTemplateProps = {
   userName: string;
@@ -21,6 +23,17 @@ export type SettingsTemplateProps = {
   onSave?: () => void;
   onLogout?: () => void;
 };
+
+function SectionHeader({ icon, title }: { icon: LucideIcon; title: string }) {
+  return (
+    <div className="mb-5 flex items-center gap-2">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+        <Icon icon={icon} size={16} className="text-primary" />
+      </div>
+      <h2 className="text-card-title font-medium text-text-primary">{title}</h2>
+    </div>
+  );
+}
 
 function Toggle({
   checked,
@@ -46,14 +59,14 @@ function Toggle({
         onClick={onToggle}
         disabled={!onToggle}
         className={cn(
-          "relative h-6 w-11 shrink-0 rounded-full transition-colors duration-hover",
+          "inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors duration-hover",
           checked ? "bg-primary" : "bg-bg-elevated"
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-hover",
-            checked ? "translate-x-[22px]" : "translate-x-0.5"
+            "h-5 w-5 rounded-full bg-white transition-transform duration-hover",
+            checked ? "translate-x-5" : "translate-x-0"
           )}
         />
       </button>
@@ -76,68 +89,75 @@ export function SettingsTemplate({
   onLogout,
 }: SettingsTemplateProps) {
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Navbar userName={userName} userAvatar={userAvatar} unreadCount={unreadCount} />
-        <main className="mx-auto w-full max-w-md flex-1 space-y-6 px-4 py-4">
-          <h1 className="font-heading text-page-title text-text-primary">Pengaturan</h1>
-
-          <div className="rounded-card border border-border bg-bg-card p-6 shadow-card">
-            <h2 className="mb-4 text-caption font-medium text-text-primary">Profil</h2>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Avatar src={userAvatar} alt={userName} size="lg" />
-                <p className="text-caption text-text-muted">Foto profil diambil dari akun Google</p>
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="settings-name" className="text-caption text-text-secondary">
-                  Nama
-                </label>
-                <Input
-                  id="settings-name"
-                  value={name}
-                  onChange={(event) => onChangeName?.(event.target.value)}
-                  disabled={!onChangeName}
-                />
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="settings-email" className="text-caption text-text-secondary">
-                  Email
-                </label>
-                <Input id="settings-email" value={email} disabled readOnly />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-card border border-border bg-bg-card p-6 shadow-card">
-            <h2 className="mb-4 text-caption font-medium text-text-primary">Notifikasi</h2>
-            <div className="space-y-5">
-              <Toggle
-                checked={notifEmailEnabled}
-                onToggle={onToggleEmailNotif}
-                label="Notifikasi email"
-                description="Dapatkan ringkasan via email"
-              />
-              <Toggle
-                checked={notifInappEnabled}
-                onToggle={onToggleInappNotif}
-                label="Notifikasi in-app"
-                description="Pemberitahuan di dalam aplikasi"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={onSave} disabled={!onSave}>
-              Simpan
-            </Button>
-            <Button variant="danger" onClick={onLogout} disabled={!onLogout}>
-              Logout
-            </Button>
-          </div>
-        </main>
+    <AppShell
+      userName={userName}
+      userAvatar={userAvatar}
+      unreadCount={unreadCount}
+      containerClassName="mx-auto max-w-2xl space-y-6"
+    >
+      <div>
+        <h1 className="font-heading text-page-title text-text-primary">Settings</h1>
+        <p className="mt-1 text-body text-text-muted">Manage your profile, preferences, and account settings.</p>
       </div>
-    </div>
+
+      <div className="glass-card rounded-2xl p-6 transition-all duration-hover hover:border-primary/30">
+        <SectionHeader icon={User} title="Profile Settings" />
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="rounded-full ring-2 ring-primary/20 ring-offset-2 ring-offset-bg-base">
+              <Avatar src={userAvatar} alt={userName} size="lg" />
+            </div>
+            <p className="text-helper text-text-muted">Profile picture synced from your Google account</p>
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="settings-name" className="text-caption text-text-secondary">
+              Full Name
+            </label>
+            <Input
+              id="settings-name"
+              value={name}
+              onChange={(event) => onChangeName?.(event.target.value)}
+              disabled={!onChangeName}
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="settings-email" className="text-caption text-text-secondary">
+              Email Address
+            </label>
+            <Input id="settings-email" value={email} disabled readOnly />
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card rounded-2xl p-6 transition-all duration-hover hover:border-primary/30">
+        <SectionHeader icon={Bell} title="Notification Preferences" />
+        <div className="space-y-5">
+          <Toggle
+            checked={notifEmailEnabled}
+            onToggle={onToggleEmailNotif}
+            label="Email Notifications"
+            description="Receive email summaries for completed downloads"
+          />
+          <Toggle
+            checked={notifInappEnabled}
+            onToggle={onToggleInappNotif}
+            label="In-App Notifications"
+            description="Show live notifications within the app interface"
+          />
+        </div>
+      </div>
+
+      <div className="glass-card-accent rounded-2xl p-6 transition-all duration-hover">
+        <SectionHeader icon={LogOut} title="Account Actions" />
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={onSave} disabled={!onSave}>
+            Save Changes
+          </Button>
+          <Button variant="danger" onClick={onLogout} disabled={!onLogout}>
+            Log Out
+          </Button>
+        </div>
+      </div>
+    </AppShell>
   );
 }

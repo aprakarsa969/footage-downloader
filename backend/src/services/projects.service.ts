@@ -1,6 +1,6 @@
 // Service Projects: CRUD project (soft delete) + buat folder Drive saat project dibuat.
-import { createDriveFolder } from '../lib/googleDrive.js';
-import { getDriveClientWithRefresh } from './driveAccounts.service.js';
+import prisma from '../config/prisma.js';
+import { driveStorageAdapter } from './driveStorageAdapter.js';
 import { findDriveAccountByIdAndUser } from '../repositories/driveAccount.repository.js';
 import {
   countProjectsByUser,
@@ -22,8 +22,7 @@ async function createProject(userId: string, body: { name: string; driveAccountI
   if (!account) {
     throw new AppError(404, 'NOT_FOUND', 'Drive account not found');
   }
-  const client = await getDriveClientWithRefresh(account);
-  const folder = await createDriveFolder(client, body.name);
+  const folder = await driveStorageAdapter.createFolder(account, body.name);
 
   const project = await insertProject({
     userId,
@@ -90,10 +89,44 @@ async function deleteProject(userId: string, id: string) {
   await softDeleteProject(id);
 }
 
+/** List semua file di folder Drive project (real-time via Google Drive API). */
+async function getProjectDriveFiles(userId: string, id: string) {
+  const project = await findProjectByIdAndUser(id, userId);
+  if (!project) {
+    throw new AppError(404, 'NOT_FOUND', 'Project not found');
+  }
+  const account = await findDriveAccountByIdAndUser(project.driveAccountId, userId);
+  if (!account) {
+    throw new AppError(404, 'NOT_FOUND', 'Drive account not found');
+  }
+  return driveStorageAdapter.listFiles(account, project.driveFolderId);
+}
+
+/** Hapus file permanen dari Google Drive + bersihkan referensi di DB. */
+async function deleteProjectDriveFile(userId: string, projectId: string, fileId: string) {
+  const project = await findProjectByIdAndUser(projectId, userId);
+  if (!project) {
+    throw new AppError(404, 'NOT_FOUND', 'Project not found');
+  }
+  const account = await findDriveAccountByIdAndUser(project.driveAccountId, userId);
+  if (!account) {
+    throw new AppError(404, 'NOT_FOUND', 'Drive account not found');
+  }
+  await driveStorageAdapter.deleteFile(account, fileId);
+
+  // Bersihkan referensi di job yang terkait file ini
+  await prisma.downloadJob.updateMany({
+    where: { projectId, driveFileId: fileId },
+    data: { driveFileId: null, driveFileUrl: null },
+  });
+}
+
 export const projectsService = {
   createProject,
   listProjects,
   getProject,
   updateProject,
   deleteProject,
+  getProjectDriveFiles,
+  deleteProjectDriveFile,
 };

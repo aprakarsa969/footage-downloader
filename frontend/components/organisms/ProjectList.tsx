@@ -9,9 +9,10 @@ export type ProjectListProps = {
   projects: Project[];
   onCreate?: () => void;
   empty?: React.ReactNode;
+  columns?: 1 | 2;
 };
 
-export function ProjectList({ projects, onCreate, empty }: ProjectListProps) {
+export function ProjectList({ projects, onCreate, empty, columns = 2 }: ProjectListProps) {
   const visibleProjects = projects.slice(0, 2);
   if (projects.length === 0) {
     if (onCreate) {
@@ -22,14 +23,14 @@ export function ProjectList({ projects, onCreate, empty }: ProjectListProps) {
           className="glass-card flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border p-5 text-center transition-colors duration-hover hover:border-primary/50"
         >
           <Icon icon={FolderPlus} size={22} className="text-text-muted" />
-          <span className="text-caption text-text-secondary">Buat Project</span>
+          <span className="text-caption text-text-secondary">Create Project</span>
         </button>
       );
     }
     return empty ?? null;
   }
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className={`grid gap-4 ${columns === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
       {visibleProjects.map((project) => (
         <Link
           key={project.id}
@@ -57,9 +58,9 @@ export function ProjectList({ projects, onCreate, empty }: ProjectListProps) {
           className="glass-card group flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border p-5 text-center transition-colors duration-hover hover:border-primary/50"
         >
           <Icon icon={FolderPlus} size={22} className="text-text-muted" />
-          <span className="text-caption text-text-secondary transition-colors duration-hover group-hover:text-primary">
-            Buat Project
-          </span>
+            <span className="text-caption text-text-secondary transition-colors duration-hover group-hover:text-primary">
+              Create Project
+            </span>
         </button>
       ) : null}
     </div>

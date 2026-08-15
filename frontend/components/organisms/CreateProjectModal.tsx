@@ -21,8 +21,8 @@ import { useToastStore } from "@/stores/toast";
 import type { ApiDriveAccount, ApiProject } from "@/types/api";
 
 const createProjectSchema = z.object({
-  name: z.string().trim().min(1, "Nama project wajib diisi"),
-  driveAccountId: z.string().min(1, "Pilih akun Drive"),
+  name: z.string().trim().min(1, "Project name is required"),
+  driveAccountId: z.string().min(1, "Select a Drive account"),
 });
 
 type CreateProjectFormValues = z.infer<typeof createProjectSchema>;
@@ -74,7 +74,7 @@ export function CreateProjectModal({ open, onClose }: CreateProjectModalProps) {
   });
 
   return (
-    <Modal open={open} onClose={onClose} title="Buat Project Baru">
+    <Modal open={open} onClose={onClose} title="Create New Project">
       {accountsQuery.isPending ? (
         <div className="flex justify-center py-8">
           <Spinner />
@@ -83,15 +83,15 @@ export function CreateProjectModal({ open, onClose }: CreateProjectModalProps) {
         <div className="space-y-4">
           <EmptyState
             icon={HardDrive}
-            title="Belum ada akun Drive terhubung"
-            description="Hubungkan Google Drive dulu untuk menyimpan hasil download"
+            title="No Drive account connected"
+            description="Connect Google Drive first to save your downloads"
             action={
-              <Button onClick={goToDriveConnect}>Hubungkan Akun Drive</Button>
+              <Button onClick={goToDriveConnect}>Connect Drive Account</Button>
             }
           />
           <div className="text-center">
             <Button variant="ghost" size="sm" onClick={onClose}>
-              Batal
+              Cancel
             </Button>
           </div>
         </div>
@@ -102,11 +102,11 @@ export function CreateProjectModal({ open, onClose }: CreateProjectModalProps) {
         >
           <div className="space-y-1">
             <label htmlFor="project-name" className="text-caption text-text-secondary">
-              Nama Project
+              Project Name
             </label>
             <Input
               id="project-name"
-              placeholder="mis. Konten YouTube Agustus"
+              placeholder="e.g. August YouTube Content"
               autoFocus
               aria-invalid={Boolean(errors.name)}
               className={
@@ -123,7 +123,7 @@ export function CreateProjectModal({ open, onClose }: CreateProjectModalProps) {
 
           <div className="space-y-1">
             <label htmlFor="project-drive" className="text-caption text-text-secondary">
-              Akun Drive Tujuan
+              Target Drive Account
             </label>
             <select
               id="project-drive"
@@ -147,10 +147,10 @@ export function CreateProjectModal({ open, onClose }: CreateProjectModalProps) {
 
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="ghost" onClick={onClose}>
-              Batal
+              Cancel
             </Button>
             <Button type="submit" disabled={createProjectMutation.isPending}>
-              {createProjectMutation.isPending ? "Membuat..." : "Buat Project"}
+              {createProjectMutation.isPending ? "Creating..." : "Create Project"}
             </Button>
           </div>
         </form>

@@ -16,6 +16,7 @@ import type {
   VideoDownloader,
   VideoTrimmer,
 } from '../types/pipeline.js';
+import type { BatchSentinel } from './batchSentinel.js';
 
 const TMP_DIR = path.resolve('tmp');
 
@@ -25,6 +26,7 @@ type PipelineDeps = {
   uploader: FileUploader;
   emitter: PipelineEmitter;
   store: JobStore;
+  sentinel: BatchSentinel;
 };
 
 /** Interface publik pipeline: proses satu job dari queue. */
@@ -72,34 +74,6 @@ export function createDownloadPipeline(deps: PipelineDeps): DownloadPipeline {
       }
       return d.filePath;
     }
-  }
-
-  /**
-   * Cek apakah batch sudah final (tidak ada lagi job pending/processing).
-   * Kalau ya: insert notifikasi + emit batch:completed (done + failed).
-   * ponytail: race kecil kalau 2 job di batch terakhir selesai bersamaan (keduanya lihat count 0).
-   * Diperbaiki dengan atomic lock di Redis (SET NX) jika perlu nanti.
-   */
-  async function checkBatchCompleted(batchId: string | null, projectId: string, userId: string) {
-    if (!batchId) {
-      return;
-    }
-    const remaining = await deps.store.countByBatchAndStatus(batchId, ['pending', 'processing']);
-    if (remaining > 0) {
-      return;
-    }
-    const [done, failed] = await Promise.all([
-      deps.store.countByBatchAndStatus(batchId, ['done']),
-      deps.store.countByBatchAndStatus(batchId, ['failed']),
-    ]);
-    const total = done + failed;
-    await deps.store.createNotification(
-      userId,
-      projectId,
-      batchId,
-      `Batch download selesai: ${done} sukses, ${failed} gagal`,
-    );
-    deps.emitter.batchCompleted(userId, { batchId, projectId, total, done, failed });
   }
 
   /** Proses satu job dari queue (entry point tiap item). */
@@ -214,7 +188,7 @@ export function createDownloadPipeline(deps: PipelineDeps): DownloadPipeline {
       await rm(jobDir, { recursive: true, force: true });
     }
 
-    await checkBatchCompleted(job.batchId, job.projectId, project.userId);
+    await deps.sentinel.notifyJobFinished(job.batchId, job.projectId, project.userId);
   }
 
   return { processJob };

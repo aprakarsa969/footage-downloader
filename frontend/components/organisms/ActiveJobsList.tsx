@@ -17,8 +17,8 @@ export function ActiveJobsList({ jobs, onRetry, onCancel }: ActiveJobsListProps)
     return (
       <EmptyState
         icon={Inbox}
-        title="Tidak ada download yang sedang berjalan"
-        description="Mulai download baru atau pantau aktivitas sebelumnya di tab Riwayat."
+        title="No active downloads"
+        description="Start a new download or check previous activity in History."
         className="w-full border-dashed bg-bg-card/50"
       />
     );

@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Folder } from "lucide-react";
 import Link from "next/link";
 
 import { Icon } from "@/components/atoms/Icon";
@@ -16,28 +16,42 @@ export function ProjectCard({
   createdAt,
 }: ProjectCardProps) {
   return (
-    <div className="relative rounded-card border border-border bg-bg-card p-6 shadow-card transition-all duration-hover hover:scale-[1.01] hover:border-border-hover hover:shadow-card-hover">
+    <div className="glass-card group rounded-2xl p-5 transition-all duration-hover hover:border-primary/30">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-hover group-hover:scale-110">
+          <Icon icon={Folder} size={20} />
+        </div>
+        <span className="rounded-full bg-bg-elevated px-2.5 py-1 text-helper text-text-muted">
+          {formatRelativeTime(createdAt)}
+        </span>
+      </div>
+
       <Link href={`/projects/${id}`} className="block">
-        <h3 className="font-heading text-card-title text-text-primary">{name}</h3>
+        <h3 className="truncate text-body font-medium text-text-primary">{name}</h3>
         <p className="mt-1 text-caption text-text-muted">
-          {footageCount} footage
+          {footageCount} {footageCount === 1 ? "video" : "videos"}
         </p>
-        {driveAccountEmail ? (
-          <p className="mt-0.5 truncate text-helper text-text-muted">{driveAccountEmail}</p>
-        ) : null}
-        <p className="mt-0.5 text-helper text-text-muted">{formatRelativeTime(createdAt)}</p>
       </Link>
-      {driveFolderUrl ? (
-        <a
-          href={driveFolderUrl}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Buka folder Drive"
-          className="absolute right-4 top-4 rounded-button p-2 text-text-muted transition-colors duration-hover hover:text-primary"
-        >
-          <Icon icon={ExternalLink} size={18} />
-        </a>
-      ) : null}
+
+      {(driveAccountEmail || driveFolderUrl) && (
+        <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
+          <p className="truncate text-helper text-text-muted">
+            {driveAccountEmail ?? ""}
+          </p>
+          {driveFolderUrl ? (
+            <a
+              href={driveFolderUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Open folder in Drive"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-button text-text-secondary transition-colors duration-hover hover:text-primary"
+            >
+              <span className="text-helper font-medium">Drive</span>
+              <Icon icon={ExternalLink} size={14} />
+            </a>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

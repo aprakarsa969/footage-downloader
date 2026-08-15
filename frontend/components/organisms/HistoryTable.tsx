@@ -27,7 +27,7 @@ export function HistoryTable({ entries, onRetry, bare, compact }: HistoryTablePr
         className={
           bare
             ? "hidden overflow-x-auto md:block"
-            : "hidden overflow-x-auto rounded-card border border-border bg-bg-card shadow-card md:block"
+            : "hidden overflow-x-auto rounded-2xl border border-border bg-bg-card/50 backdrop-blur-sm md:block"
         }
       >
       <table className={`w-full text-left ${compact ? "" : "min-w-[720px]"}`}>
@@ -36,15 +36,15 @@ export function HistoryTable({ entries, onRetry, bare, compact }: HistoryTablePr
             <th className="px-4 py-3 font-medium">Video</th>
             <th className="px-4 py-3 font-medium">Project</th>
             {!compact ? <th className="px-4 py-3 font-medium">Platform</th> : null}
-            {!compact ? <th className="px-4 py-3 font-medium">Mode &amp; Resolusi</th> : null}
+            {!compact ? <th className="px-4 py-3 font-medium">Mode &amp; Resolution</th> : null}
             <th className="px-4 py-3 font-medium">Status</th>
-            {!compact ? <th className="px-4 py-3 font-medium">Tanggal</th> : null}
-            <th className="px-4 py-3 font-medium">Aksi</th>
+            {!compact ? <th className="px-4 py-3 font-medium">Date</th> : null}
+            <th className="px-4 py-3 font-medium">Action</th>
           </tr>
         </thead>
         <tbody>
           {entries.map((entry) => (
-            <tr key={entry.id} className="border-b border-border last:border-b-0 hover:bg-bg-surface">
+            <tr key={entry.id} className="border-b border-border last:border-b-0 transition-colors duration-hover hover:bg-bg-surface/50">
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   {!compact && entry.thumbnailUrl ? (
@@ -97,7 +97,7 @@ export function HistoryTable({ entries, onRetry, bare, compact }: HistoryTablePr
                     href={entry.driveFileUrl}
                     target="_blank"
                     rel="noreferrer"
-                    aria-label="Buka file di Drive"
+                    aria-label="Open file in Drive"
                     className="inline-flex rounded-button p-2 text-text-secondary transition-colors duration-hover hover:text-primary"
                   >
                     <Icon icon={ExternalLink} size={18} />
