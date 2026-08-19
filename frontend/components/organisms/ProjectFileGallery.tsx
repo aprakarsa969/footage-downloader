@@ -75,6 +75,18 @@ export function ProjectFileGallery({ files, onDeleteFile, onPreviewFile }: Proje
                   </div>
                 </div>
               </button>
+            ) : isVideo(file.mimeType) ? (
+              <button
+                type="button"
+                onClick={() => onPreviewFile?.(file)}
+                className="relative block aspect-video w-full overflow-hidden rounded-card bg-bg-elevated"
+              >
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-border/40 to-border/20" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
+                  <Icon icon={FileVideo} size={28} className="text-text-muted/60" />
+                  <span className="text-helper text-text-muted/80">Generating preview...</span>
+                </div>
+              </button>
             ) : (
               <button
                 type="button"

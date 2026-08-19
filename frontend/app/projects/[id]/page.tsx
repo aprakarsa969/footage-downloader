@@ -15,20 +15,16 @@ import { Input } from "@/components/atoms/Input";
 import { Spinner } from "@/components/atoms/Spinner";
 import { Modal } from "@/components/molecules/Modal";
 import { ProjectDetailTemplate } from "@/components/templates/ProjectDetailTemplate";
-import { useJobActions } from "@/hooks/useJobActions";
-import { api, getUser } from "@/lib/api";
-import { mapJobToJob } from "@/lib/mappers";
+import { API_BASE_URL, api, getUser, getToken } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import type {
   ApiDriveFile,
-  ApiJob,
   ApiProject,
   ApiProjectDetail,
   ApiUser,
   ApiValidateResult,
   BatchCreateLink,
   BatchCreateResponse,
-  Paginated,
 } from "@/types/api";
 
 const renameSchema = z.object({
@@ -163,10 +159,18 @@ function DeleteFileModal({
 type VideoPreviewModalProps = {
   open: boolean;
   onClose: () => void;
+  projectId: string;
   file: ApiDriveFile | null;
 };
 
-function VideoPreviewModal({ open, onClose, file }: VideoPreviewModalProps) {
+function VideoPreviewModal({ open, onClose, projectId, file }: VideoPreviewModalProps) {
+  const [loadError, setLoadError] = useState(false);
+
+  const streamUrl =
+    file && typeof window !== "undefined"
+      ? `${API_BASE_URL}/projects/${projectId}/drive-files/${file.id}/stream?token=${getToken()}`
+      : null;
+
   if (!file) return null;
 
   return (
@@ -206,12 +210,21 @@ function VideoPreviewModal({ open, onClose, file }: VideoPreviewModalProps) {
               </button>
             </div>
             <div className="relative w-full bg-black">
-              <iframe
-                src={`https://drive.google.com/file/d/${file.id}/preview`}
-                className="h-[500px] w-full"
-                allow="autoplay; encrypted-media"
-                title={file.name}
-              />
+              {loadError && (
+                <div className="flex h-[500px] w-full items-center justify-center">
+                  <p className="text-body text-status-danger">Failed to load video preview.</p>
+                </div>
+              )}
+              <video
+                key={file.id}
+                controls
+                autoPlay
+                src={streamUrl ?? undefined}
+                className={`h-[500px] w-full ${loadError ? "hidden" : ""}`}
+                onError={() => setLoadError(true)}
+              >
+                <track kind="captions" />
+              </video>
             </div>
             <div className="flex items-center justify-between border-t border-border/50 px-6 py-3">
               <span className="text-caption text-text-muted">{file.name}</span>
@@ -238,7 +251,6 @@ export default function ProjectDetailPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const { retry, cancel } = useJobActions();
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteFileOpen, setDeleteFileOpen] = useState(false);
@@ -248,13 +260,6 @@ export default function ProjectDetailPage() {
   const projectQuery = useQuery({
     queryKey: ["project", id],
     queryFn: () => api<ApiProjectDetail>(`/projects/${id}`),
-    enabled: !!id,
-  });
-
-  const jobsQuery = useQuery({
-    queryKey: ["project-jobs", id],
-    queryFn: () =>
-      api<Paginated<ApiJob>>(`/projects/${id}/jobs?page=1&limit=50`),
     enabled: !!id,
   });
 
@@ -335,7 +340,7 @@ export default function ProjectDetailPage() {
       useToastStore.getState().push(error.message, "error"),
   });
 
-  const queries = [projectQuery, jobsQuery];
+  const queries = [projectQuery];
 
   if (queries.some((q) => q.isPending)) {
     return (
@@ -379,13 +384,7 @@ export default function ProjectDetailPage() {
   const userName = user?.name || "User";
 
   const project = projectQuery.data!;
-  const jobsData = jobsQuery.data?.data ?? [];
-  const jobs = jobsData.map(mapJobToJob);
   const driveFiles = driveFilesQuery.data ?? [];
-
-  const activeJobs = jobs.filter(
-    (j) => j.status === "pending" || j.status === "processing",
-  );
 
   return (
     <>
@@ -394,10 +393,7 @@ export default function ProjectDetailPage() {
         userAvatar={user?.avatar_url ?? undefined}
         projectName={project.name}
         driveFolderUrl={project.drive_folder_url}
-        activeJobs={activeJobs}
         driveFiles={driveFiles}
-        onRetryJob={(job) => retry(job.id)}
-        onCancelJob={(job) => cancel(job.id)}
         onSubmitLinks={(urls) => submitBatch.mutate(urls)}
         onRenameProject={() => setRenameOpen(true)}
         onDeleteProject={() => setDeleteOpen(true)}
@@ -436,6 +432,7 @@ export default function ProjectDetailPage() {
       <VideoPreviewModal
         open={previewFile !== null}
         onClose={() => setPreviewFile(null)}
+        projectId={id}
         file={previewFile}
       />
     </>

@@ -1,8 +1,16 @@
 // Koneksi Redis (ioredis) untuk BullMQ (queue + worker download job).
-// maxRetriesPerRequest: null — wajib untuk BullMQ, Redis siap menunggu selama job diproses.
+// Lazy-init: koneksi hanya dibuat saat pertama kali dipanggil (hindari side-effect saat import di test).
 import 'dotenv/config';
 import { Redis } from 'ioredis';
 
-export const redisConnection = new Redis(process.env.REDIS_URL!, {
-  maxRetriesPerRequest: null,
-});
+let _connection: Redis | null = null;
+
+/** Lazy-init Redis connection — only connects when first called. */
+export function getRedisConnection(): Redis {
+  if (!_connection) {
+    _connection = new Redis(process.env.REDIS_URL!, {
+      maxRetriesPerRequest: null,
+    });
+  }
+  return _connection;
+}

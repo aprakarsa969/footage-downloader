@@ -54,6 +54,7 @@ export function jobToSummaryResponse(job: {
   sourceUrl: string;
   videoTitle: string | null;
   platform: string;
+  thumbnailUrl: string | null;
   mode: string;
   status: string;
   progressPercent: number;
@@ -70,6 +71,7 @@ export function jobToSummaryResponse(job: {
     source_url: job.sourceUrl,
     video_title: job.videoTitle,
     platform: job.platform,
+    thumbnail_url: job.thumbnailUrl,
     mode: job.mode,
     status: job.status,
     progress_percent: job.progressPercent,
@@ -132,6 +134,7 @@ export function projectToResponse(project: {
   totalFootageCount: number;
   createdAt: Date;
   updatedAt: Date;
+  downloadJobs?: { thumbnailUrl: string | null }[];
 }) {
   return {
     id: project.id,
@@ -142,5 +145,8 @@ export function projectToResponse(project: {
     total_footage_count: project.totalFootageCount,
     created_at: project.createdAt,
     updated_at: project.updatedAt,
+    recent_thumbnails: (project.downloadJobs ?? [])
+      .map((j) => j.thumbnailUrl)
+      .filter((url): url is string => url !== null),
   };
 }

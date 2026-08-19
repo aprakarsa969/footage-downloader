@@ -1,154 +1,203 @@
 "use client";
 
-import { FolderOpen, HardDrive, Link2, Plus } from "lucide-react";
+import { ExternalLink, FolderPlus, Link2, SquarePlay } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
-import { EmptyState } from "@/components/molecules/EmptyState";
-import { ActiveJobsList } from "@/components/organisms/ActiveJobsList";
-import { HistoryTable } from "@/components/organisms/HistoryTable";
-import { ProjectList } from "@/components/organisms/ProjectList";
+import { PlatformIcon } from "@/components/molecules/PlatformIcon";
+import { StatusBadge } from "@/components/molecules/StatusBadge";
+import { ThumbnailPreview } from "@/components/molecules/ThumbnailPreview";
+import { ProjectCard } from "@/components/organisms/ProjectCard";
 import { SummaryCardGroup, type DashboardSummary } from "@/components/organisms/SummaryCardGroup";
 import { AppShell } from "@/components/templates/AppShell";
+import { useSubmitBatchLink } from "@/hooks/useLinkIntake";
+import { formatRelativeTime } from "@/lib/date";
 import type { HistoryEntry } from "@/types/history";
-import type { Job } from "@/types/job";
 import type { Project } from "@/types/project";
 
 export type DashboardTemplateProps = {
   userName: string;
   userAvatar?: string;
-  unreadCount?: number;
   summary: DashboardSummary;
-  activeJobs: Job[];
   projects: Project[];
   history: HistoryEntry[];
-  onRetryJob?: (job: Job) => void;
-  onCancelJob?: (job: Job) => void;
   onRetryHistory?: (entry: HistoryEntry) => void;
   onCreateProject?: () => void;
   onConnectDrive?: () => void;
 };
 
+function QuickDownloadBar({ projects }: { projects: Project[] }) {
+  const [url, setUrl] = useState("");
+  const { mutate: submitLink, isPending } = useSubmitBatchLink();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = url.trim();
+    if (!trimmed || projects.length === 0) return;
+    submitLink(
+      { projectId: projects[0].id, links: [{ url: trimmed, mode: "full", resolution: "" }] },
+      { onSuccess: () => setUrl("") },
+    );
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="glass-card flex items-center gap-3 rounded-card p-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+        <Icon icon={Link2} size={18} className="text-primary" />
+      </div>
+      <input
+        type="text"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="Paste YouTube, TikTok, or Instagram link here"
+        className="flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
+      />
+      <Button
+        type="submit"
+        size="sm"
+        disabled={!url.trim() || isPending}
+        icon={SquarePlay}
+      >
+        Download
+      </Button>
+    </form>
+  );
+}
+
+function ProjectCardGrid({ projects, onCreate }: { projects: Project[]; onCreate?: () => void }) {
+  const visible = projects.slice(0, 3);
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {visible.map((project) => (
+        <ProjectCard key={project.id} {...project} />
+      ))}
+      {onCreate && visible.length < 3 ? (
+        <button
+          type="button"
+          onClick={onCreate}
+          className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-border p-4 transition-colors duration-hover hover:border-primary/50"
+        >
+          <Icon icon={FolderPlus} size={20} className="text-text-muted" />
+          <span className="text-caption text-text-secondary">Create project</span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function HistoryListItem({
+  entry,
+  onRetry,
+}: {
+  entry: HistoryEntry;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0">
+      {entry.thumbnailUrl ? (
+        <ThumbnailPreview src={entry.thumbnailUrl} className="w-12 shrink-0 !rounded-md" />
+      ) : (
+        <div className="flex h-8 w-12 shrink-0 items-center justify-center rounded-md bg-bg-elevated">
+          <PlatformIcon platform={entry.platform} size={14} />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p
+          className="truncate text-body text-text-primary"
+          title={entry.videoTitle ?? entry.url}
+        >
+          {entry.videoTitle ?? entry.url}
+        </p>
+        <p className="mt-0.5 text-helper text-text-muted">
+          {entry.platform} · {formatRelativeTime(entry.createdAt)}
+        </p>
+      </div>
+      <StatusBadge status={entry.status} size="sm" />
+      {entry.status === "done" && entry.driveFileUrl ? (
+        <a
+          href={entry.driveFileUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Open in Drive"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-button text-text-secondary transition-colors duration-hover hover:text-primary"
+        >
+          <Icon icon={ExternalLink} size={14} />
+        </a>
+      ) : entry.status === "failed" && onRetry ? (
+        <Button size="sm" variant="ghost" onClick={onRetry}>
+          Retry
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export function DashboardTemplate({
   userName,
   userAvatar,
-  unreadCount,
   summary,
-  activeJobs,
   projects,
   history,
-  onRetryJob,
-  onCancelJob,
   onRetryHistory,
   onCreateProject,
-  onConnectDrive,
 }: DashboardTemplateProps) {
   return (
     <AppShell
       userName={userName}
       userAvatar={userAvatar}
-      unreadCount={unreadCount}
       containerClassName="mx-auto max-w-[1400px] space-y-4"
     >
+      {/* Quick Download Bar */}
+      <QuickDownloadBar projects={projects} />
+
+      {/* Summary Cards */}
+      <SummaryCardGroup summary={summary} />
+
+      {/* Projects */}
       <section>
-        <SummaryCardGroup summary={summary} />
-      </section>
-
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="glass-card-strong rounded-2xl p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-heading text-subtitle font-medium text-text-primary">
-              Active Downloads
-            </h2>
-            {activeJobs.length > 0 && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-helper font-medium text-primary">
-                {activeJobs.length} {activeJobs.length === 1 ? "job" : "jobs"}
-              </span>
-            )}
-          </div>
-          <ActiveJobsList
-            jobs={activeJobs}
-            onRetry={onRetryJob}
-            onCancel={onCancelJob}
-          />
-        </div>
-
-        <div className="glass-card-accent flex flex-col gap-4 rounded-2xl p-5">
+        <div className="mb-3 flex items-center justify-between">
           <h2 className="font-heading text-subtitle font-medium text-text-primary">
-            Quick Actions
+            Projects
           </h2>
-          <div className="space-y-3">
-            <Button onClick={onCreateProject} icon={Plus} className="w-full justify-center">
-              New Project
-            </Button>
-            <Button variant="secondary" onClick={onConnectDrive} icon={HardDrive} className="w-full justify-center">
-              Connect Google Drive
-            </Button>
-          </div>
-          <div className="mt-auto rounded-xl border border-border bg-bg-surface/50 p-4">
-            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-bg-elevated">
-              <Icon icon={Link2} size={16} className="text-primary" />
-            </div>
-            <p className="text-body font-medium text-text-primary">
-              Ready to download?
-            </p>
-            <p className="mt-1 text-helper text-text-muted">
-              Paste a YouTube, TikTok, or Instagram link and we&apos;ll handle the rest.
-            </p>
-          </div>
+          <Link
+            href="/projects"
+            className="text-caption text-text-secondary transition-colors duration-hover hover:text-primary"
+          >
+            View all
+          </Link>
         </div>
+        <ProjectCardGrid projects={projects} onCreate={onCreateProject} />
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="glass-card rounded-2xl p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-heading text-subtitle font-medium text-text-primary">
-              Projects
-            </h2>
-            <Link
-              href="/projects"
-              className="text-caption text-text-secondary transition-colors duration-hover hover:text-primary"
-            >
-              View all
-            </Link>
-          </div>
-          <ProjectList
-            projects={projects}
-            columns={1}
-            onCreate={onCreateProject}
-            empty={
-              <EmptyState
-                icon={FolderOpen}
-                title="No projects yet"
-                action={
-                  <Button size="sm" onClick={onCreateProject} icon={Plus}>
-                    Create Project
-                  </Button>
-                }
-              />
-            }
-          />
+      {/* Recent History */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-heading text-subtitle font-medium text-text-primary">
+            Recent History
+          </h2>
+          <Link
+            href="/history"
+            className="text-caption text-text-secondary transition-colors duration-hover hover:text-primary"
+          >
+            View all
+          </Link>
         </div>
-
-        <div className="glass-card rounded-2xl p-5 lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-heading text-subtitle font-medium text-text-primary">
-              Recent History
-            </h2>
-            <Link
-              href="/history"
-              className="text-caption text-text-secondary transition-colors duration-hover hover:text-primary"
-            >
-              View all
-            </Link>
-          </div>
-          <HistoryTable
-            bare
-            compact
-            entries={history.slice(0, 4)}
-            onRetry={onRetryHistory}
-          />
+        <div className="glass-card overflow-hidden rounded-2xl">
+          {history.length === 0 ? (
+            <div className="px-4 py-8 text-center text-helper text-text-muted">
+              No download history yet
+            </div>
+          ) : (
+            history.slice(0, 5).map((entry) => (
+              <HistoryListItem
+                key={entry.id}
+                entry={entry}
+                onRetry={onRetryHistory ? () => onRetryHistory(entry) : undefined}
+              />
+            ))
+          )}
         </div>
       </section>
     </AppShell>

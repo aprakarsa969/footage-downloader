@@ -1,8 +1,10 @@
 // Service Dashboard: agregasi data lintas project user untuk halaman dashboard.
 // summary → angka global; activeJobs → job yang sedang berjalan; history → riwayat job + filter.
 import {
+  clearHistoryJobsByUser,
   countActiveJobsByUser,
   countHistoryJobsByUser,
+  deleteHistoryJobByUser,
   groupDownloadJobsByUserStatus,
   listActiveJobsByUser,
   listHistoryJobsByUser,
@@ -70,6 +72,7 @@ async function history(
     platform?: string;
     from?: string;
     to?: string;
+    search?: string;
     page?: number;
     limit?: number;
   },
@@ -99,6 +102,7 @@ async function history(
     platform: query.platform,
     from,
     to,
+    search: query.search,
   };
   const [data, total] = await Promise.all([
     listHistoryJobsByUser(userId, filters, page, limit),
@@ -119,4 +123,18 @@ function parseDate(value?: string) {
   return date;
 }
 
-export const dashboardService = { summary, activeJobs, history };
+export const dashboardService = { summary, activeJobs, history, deleteHistoryItem, clearHistory };
+
+/** Hapus 1 item riwayat milik user. */
+async function deleteHistoryItem(userId: string, jobId: string) {
+  const result = await deleteHistoryJobByUser(jobId, userId);
+  if (result.count === 0) {
+    throw new AppError(404, 'NOT_FOUND', 'History item not found');
+  }
+}
+
+/** Hapus semua riwayat selesai/gagal/dibatalkan milik user. */
+async function clearHistory(userId: string) {
+  const result = await clearHistoryJobsByUser(userId);
+  return { count: result.count };
+}

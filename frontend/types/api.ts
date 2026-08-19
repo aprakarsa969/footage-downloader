@@ -55,6 +55,7 @@ export type ApiJobSummary = {
   source_url: string;
   video_title: string | null;
   platform: string;
+  thumbnail_url: string | null;
   mode: "full" | "timestamp";
   status: JobStatus;
   progress_percent: number;
@@ -72,6 +73,7 @@ export type ApiProject = {
   drive_folder_id: string;
   drive_folder_url: string;
   total_footage_count: number;
+  recent_thumbnails: string[];
   created_at: string;
   updated_at: string;
 };
@@ -198,4 +200,9 @@ export type ApiDriveFile = {
   createdTime: string;
   thumbnailLink: string | null;
   webViewLink: string | null;
+};
+
+export type ApiShareResponse = {
+  permissionId: string;
+  streamUrl: string;
 };

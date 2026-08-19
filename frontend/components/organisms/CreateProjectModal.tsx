@@ -8,11 +8,12 @@ import {
 } from "@tanstack/react-query";
 import { HardDrive } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
+import { Select } from "@/components/atoms/Select";
 import { Spinner } from "@/components/atoms/Spinner";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { Modal } from "@/components/molecules/Modal";
@@ -26,9 +27,6 @@ const createProjectSchema = z.object({
 });
 
 type CreateProjectFormValues = z.infer<typeof createProjectSchema>;
-
-const selectClassName =
-  "h-12 rounded-input border border-border bg-bg-surface px-3 text-body text-text-primary focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 export type CreateProjectModalProps = {
   open: boolean;
@@ -66,6 +64,7 @@ export function CreateProjectModal({ open, onClose }: CreateProjectModalProps) {
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<CreateProjectFormValues>({
@@ -125,19 +124,23 @@ export function CreateProjectModal({ open, onClose }: CreateProjectModalProps) {
             <label htmlFor="project-drive" className="text-caption text-text-secondary">
               Target Drive Account
             </label>
-            <select
-              id="project-drive"
-              className={selectClassName}
-              aria-invalid={Boolean(errors.driveAccountId)}
-              {...register("driveAccountId")}
-            >
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.google_account_email}
-                  {account.is_default ? " (default)" : ""}
-                </option>
-              ))}
-            </select>
+            <Controller
+              control={control}
+              name="driveAccountId"
+              render={({ field }) => (
+                <Select
+                  id="project-drive"
+                  aria-label="Target Drive Account"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={Boolean(errors.driveAccountId)}
+                  options={accounts.map((account) => ({
+                    value: account.id,
+                    label: `${account.google_account_email}${account.is_default ? " (default)" : ""}`,
+                  }))}
+                />
+              )}
+            />
             {errors.driveAccountId ? (
               <p className="text-helper text-status-danger">
                 {errors.driveAccountId.message}

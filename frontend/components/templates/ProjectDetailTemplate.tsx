@@ -1,26 +1,20 @@
 "use client";
 
-import { ExternalLink, Film, FolderOpen, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { ExternalLink, FolderOpen, Pencil, RefreshCw, Trash2 } from "lucide-react";
 
 import { Icon } from "@/components/atoms/Icon";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { LinkInputForm } from "@/components/organisms/LinkInputForm";
-import { JobRow } from "@/components/organisms/JobRow";
 import { ProjectFileGallery } from "@/components/organisms/ProjectFileGallery";
 import { AppShell } from "@/components/templates/AppShell";
-import type { Job } from "@/types/job";
 import type { ApiDriveFile, BatchCreateLink } from "@/types/api";
 
 export type ProjectDetailTemplateProps = {
   userName: string;
   userAvatar?: string;
-  unreadCount?: number;
   projectName: string;
   driveFolderUrl?: string;
-  activeJobs: Job[];
   driveFiles: ApiDriveFile[];
-  onRetryJob?: (job: Job) => void;
-  onCancelJob?: (job: Job) => void;
   onSubmitLinks?: (links: BatchCreateLink[]) => void;
   onRenameProject?: () => void;
   onDeleteProject?: () => void;
@@ -32,13 +26,9 @@ export type ProjectDetailTemplateProps = {
 export function ProjectDetailTemplate({
   userName,
   userAvatar,
-  unreadCount,
   projectName,
   driveFolderUrl,
-  activeJobs,
   driveFiles,
-  onRetryJob,
-  onCancelJob,
   onSubmitLinks,
   onRenameProject,
   onDeleteProject,
@@ -47,7 +37,7 @@ export function ProjectDetailTemplate({
   onPreviewFile,
 }: ProjectDetailTemplateProps) {
   return (
-    <AppShell userName={userName} userAvatar={userAvatar} unreadCount={unreadCount}>
+    <AppShell userName={userName} userAvatar={userAvatar}>
       <header>
         <div className="flex items-center gap-2">
           <h1 className="font-heading text-page-title text-text-primary">
@@ -87,48 +77,15 @@ export function ProjectDetailTemplate({
         ) : null}
       </header>
 
-      {/* Top Row: Add Links + Job Queue side-by-side */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="glass-card-accent rounded-2xl p-6">
-          <h2 className="mb-4 font-heading text-subtitle font-medium text-text-primary">
-            Add Links
-          </h2>
-          <LinkInputForm onSubmit={onSubmitLinks} />
-        </div>
-
-        <div className="glass-card-strong rounded-2xl p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-heading text-subtitle font-medium text-text-primary">
-              Job Queue
-            </h2>
-            {activeJobs.length > 0 && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-helper font-medium text-primary">
-                {activeJobs.length} {activeJobs.length === 1 ? "job" : "jobs"}
-              </span>
-            )}
-          </div>
-          {activeJobs.length === 0 ? (
-            <EmptyState
-              icon={Film}
-              title="No active jobs"
-              description="Add video links above to start downloading."
-            />
-          ) : (
-            <div className="space-y-3">
-              {activeJobs.map((job) => (
-                <JobRow
-                  key={job.id}
-                  job={job}
-                  onRetry={onRetryJob ? () => onRetryJob(job) : undefined}
-                  onCancel={onCancelJob ? () => onCancelJob(job) : undefined}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Add Links */}
+      <div className="glass-card-accent rounded-2xl p-6">
+        <h2 className="mb-4 font-heading text-subtitle font-medium text-text-primary">
+          Add Links
+        </h2>
+        <LinkInputForm onSubmit={onSubmitLinks} />
       </div>
 
-      {/* Bottom: File Gallery (real-time from Google Drive) */}
+      {/* Project Files */}
       <section>
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -155,11 +112,15 @@ export function ProjectDetailTemplate({
         {driveFiles.length === 0 ? (
           <EmptyState
             icon={FolderOpen}
-            title="No files in this project yet"
-            description="Completed footage will appear here in your Drive folder gallery."
+            title="No files yet"
+            description="Downloaded files will appear here once they are ready."
           />
         ) : (
-          <ProjectFileGallery files={driveFiles} onDeleteFile={onDeleteFile} onPreviewFile={onPreviewFile} />
+          <ProjectFileGallery
+            files={driveFiles}
+            onDeleteFile={onDeleteFile}
+            onPreviewFile={onPreviewFile}
+          />
         )}
       </section>
     </AppShell>

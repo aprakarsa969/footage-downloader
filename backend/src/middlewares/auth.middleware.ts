@@ -1,6 +1,8 @@
 // Middleware auth: memverifikasi JWT dari header `Authorization: Bearer <token>`.
-// Fallback: token dari cookie `footage_token` (dipakai alur OAuth yang butuh navigasi
-// browser full-page, mis. /drive-accounts/connect — browser tak bisa pasang header custom).
+// Fallback (prioritas urut):
+//   1. Header Authorization
+//   2. Cookie `footage_token` (dipakai alur OAuth navigasi browser)
+//   3. Query param `token` (untuk request lintas-origin yang tak bisa kirim header/cookie, mis. <video src>)
 // JWT berisi payload `{ sub: user.id }`; jika valid, `req.user.id` terisi lalu next().
 // Semua kegagalan → AppError 401 (format error konsisten ditangani errorHandler).
 import 'dotenv/config';
@@ -26,6 +28,10 @@ function getToken(req: Request): string | null {
     if (match) {
       return decodeURIComponent(match.slice(TOKEN_COOKIE.length + 1));
     }
+  }
+  const queryToken = req.query?.token;
+  if (typeof queryToken === 'string' && queryToken) {
+    return queryToken;
   }
   return null;
 }

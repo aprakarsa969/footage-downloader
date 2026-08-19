@@ -12,7 +12,6 @@ import type { LucideIcon } from "lucide-react";
 export type SettingsTemplateProps = {
   userName: string;
   userAvatar?: string;
-  unreadCount?: number;
   name: string;
   email: string;
   notifEmailEnabled: boolean;
@@ -77,7 +76,6 @@ function Toggle({
 export function SettingsTemplate({
   userName,
   userAvatar,
-  unreadCount,
   name,
   email,
   notifEmailEnabled,
@@ -92,7 +90,6 @@ export function SettingsTemplate({
     <AppShell
       userName={userName}
       userAvatar={userAvatar}
-      unreadCount={unreadCount}
       containerClassName="mx-auto max-w-2xl space-y-6"
     >
       <div>

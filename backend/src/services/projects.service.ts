@@ -1,6 +1,6 @@
 // Service Projects: CRUD project (soft delete) + buat folder Drive saat project dibuat.
-import prisma from '../config/prisma.js';
 import { driveStorageAdapter } from './driveStorageAdapter.js';
+import { projectFootageStorage } from './projectFootageStorage.js';
 import { findDriveAccountByIdAndUser } from '../repositories/driveAccount.repository.js';
 import {
   countProjectsByUser,
@@ -36,11 +36,11 @@ async function createProject(userId: string, body: { name: string; driveAccountI
 }
 
 /** List project user, paginated, terbaru dulu. */
-async function listProjects(userId: string, page: number, limit: number) {
+async function listProjects(userId: string, page: number, limit: number, search?: string) {
   const skip = (page - 1) * limit;
   const [data, total] = await Promise.all([
-    listProjectsByUser(userId, skip, limit),
-    countProjectsByUser(userId),
+    listProjectsByUser(userId, skip, limit, search),
+    countProjectsByUser(userId, search),
   ]);
   return {
     data: data.map(projectToResponse),
@@ -90,35 +90,33 @@ async function deleteProject(userId: string, id: string) {
 }
 
 /** List semua file di folder Drive project (real-time via Google Drive API). */
-async function getProjectDriveFiles(userId: string, id: string) {
-  const project = await findProjectByIdAndUser(id, userId);
-  if (!project) {
-    throw new AppError(404, 'NOT_FOUND', 'Project not found');
-  }
-  const account = await findDriveAccountByIdAndUser(project.driveAccountId, userId);
-  if (!account) {
-    throw new AppError(404, 'NOT_FOUND', 'Drive account not found');
-  }
-  return driveStorageAdapter.listFiles(account, project.driveFolderId);
+function getProjectDriveFiles(userId: string, id: string) {
+  return projectFootageStorage.listFootage(userId, id);
 }
 
 /** Hapus file permanen dari Google Drive + bersihkan referensi di DB. */
-async function deleteProjectDriveFile(userId: string, projectId: string, fileId: string) {
-  const project = await findProjectByIdAndUser(projectId, userId);
-  if (!project) {
-    throw new AppError(404, 'NOT_FOUND', 'Project not found');
-  }
-  const account = await findDriveAccountByIdAndUser(project.driveAccountId, userId);
-  if (!account) {
-    throw new AppError(404, 'NOT_FOUND', 'Drive account not found');
-  }
-  await driveStorageAdapter.deleteFile(account, fileId);
+function deleteProjectDriveFile(userId: string, projectId: string, fileId: string) {
+  return projectFootageStorage.deleteFootage(userId, projectId, fileId);
+}
 
-  // Bersihkan referensi di job yang terkait file ini
-  await prisma.downloadJob.updateMany({
-    where: { projectId, driveFileId: fileId },
-    data: { driveFileId: null, driveFileUrl: null },
-  });
+/** Buat temporary public permission pada file untuk streaming video. */
+function shareFileForPreview(userId: string, projectId: string, fileId: string) {
+  return projectFootageStorage.shareFootage(userId, projectId, fileId);
+}
+
+/** Cabut temporary public permission dari file. */
+function revokeFilePreview(userId: string, projectId: string, fileId: string, permissionId: string) {
+  return projectFootageStorage.revokeFootage(userId, projectId, fileId, permissionId);
+}
+
+/** Stream isi file dari Drive melalui backend (proxy). Mendukung Range header untuk video seeking. */
+function streamProjectFile(
+  userId: string,
+  projectId: string,
+  fileId: string,
+  options?: { rangeHeader?: string | null },
+) {
+  return projectFootageStorage.streamFootage(userId, projectId, fileId, options);
 }
 
 export const projectsService = {
@@ -129,4 +127,7 @@ export const projectsService = {
   deleteProject,
   getProjectDriveFiles,
   deleteProjectDriveFile,
+  shareFileForPreview,
+  revokeFilePreview,
+  streamProjectFile,
 };
