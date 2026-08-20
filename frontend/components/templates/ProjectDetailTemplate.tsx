@@ -79,9 +79,6 @@ export function ProjectDetailTemplate({
 
       {/* Add Links */}
       <div className="glass-card-accent rounded-2xl p-6">
-        <h2 className="mb-4 font-heading text-subtitle font-medium text-text-primary">
-          Add Links
-        </h2>
         <LinkInputForm onSubmit={onSubmitLinks} />
       </div>
 

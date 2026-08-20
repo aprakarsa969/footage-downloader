@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
 import { AuthTemplate } from "@/components/templates/AuthTemplate";
-import { clearAuth, goToGoogleLogin, setToken, setUser } from "@/lib/api";
+import { goToGoogleLogin } from "@/lib/api";
+import { useSessionStore } from "@/stores/session";
 import type { ApiUser } from "@/types/api";
 
 function LoginInner() {
@@ -21,14 +22,13 @@ function LoginInner() {
       email: searchParams.get("email") ?? "",
       avatar_url: searchParams.get("avatar") || null,
     };
-    setToken(token);
-    setUser(user);
+    useSessionStore.getState().setSession(token, user);
     router.replace("/dashboard");
   }, [token, searchParams, router]);
 
   useEffect(() => {
     if (searchParams.get("error")) {
-      clearAuth();
+      useSessionStore.getState().clear();
     }
   }, [searchParams]);
 

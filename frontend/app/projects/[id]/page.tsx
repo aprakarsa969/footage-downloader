@@ -332,6 +332,9 @@ export default function ProjectDetailPage() {
       api<void>(`/projects/${id}/drive-files/${fileId}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-drive-files", id] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "summary"] });
       useToastStore.getState().push("File deleted from Google Drive");
       setDeleteFileOpen(false);
       setFileToDelete(null);
