@@ -3,7 +3,7 @@
 import prisma from '../config/prisma.js';
 import { driveStorageAdapter } from './driveStorageAdapter.js';
 import { findDriveAccountByIdAndUser } from '../repositories/driveAccount.repository.js';
-import { findProjectByIdAndUser } from '../repositories/project.repository.js';
+import { decrementProjectFootageCount, findProjectByIdAndUser } from '../repositories/project.repository.js';
 import { findThumbnailsByDriveFileIds } from '../repositories/downloadJob.repository.js';
 import { AppError } from '../utils/AppError.js';
 import type { DriveFolderFile } from '../lib/googleDrive.js';
@@ -54,10 +54,14 @@ export function createProjectFootageStorage(): ProjectFootageStorage {
       const { account } = await resolveProjectAndAccount(userId, projectId);
       await driveStorageAdapter.deleteFile(account, fileId);
 
-      await prisma.downloadJob.updateMany({
+      const result = await prisma.downloadJob.updateMany({
         where: { projectId, driveFileId: fileId },
         data: { driveFileId: null, driveFileUrl: null },
       });
+
+      if (result.count > 0) {
+        await decrementProjectFootageCount(projectId);
+      }
     },
 
     async shareFootage(userId, projectId, fileId) {
