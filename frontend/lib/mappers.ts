@@ -65,7 +65,7 @@ export function mapJobSummaryToJob(job: ApiJobSummary): Job {
     videoTitle: job.video_title,
     url: job.source_url,
     platform: job.platform,
-    thumbnailUrl: null,
+    thumbnailUrl: job.thumbnail_url ?? null,
     status: job.status,
     progressPercent: job.progress_percent,
     stage: null,
@@ -77,7 +77,7 @@ export function mapJobSummaryToJob(job: ApiJobSummary): Job {
 export function mapJobSummaryToHistoryEntry(job: ApiJobSummary): HistoryEntry {
   return {
     id: job.id,
-    thumbnailUrl: null,
+    thumbnailUrl: job.thumbnail_url ?? null,
     videoTitle: job.video_title,
     url: job.source_url,
     platform: job.platform,
@@ -98,6 +98,7 @@ export function mapProjectToProject(project: ApiProject): Project {
     name: project.name,
     footageCount: project.total_footage_count,
     driveFolderUrl: project.drive_folder_url,
+    recentThumbnails: project.recent_thumbnails ?? [],
     createdAt: project.created_at,
   };
 }

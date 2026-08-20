@@ -12,11 +12,10 @@ import { DashboardTemplate } from "@/components/templates/DashboardTemplate";
 import { api, getUser, goToDriveConnect } from "@/lib/api";
 import {
   mapJobSummaryToHistoryEntry,
-  mapJobSummaryToJob,
   mapProjectToProject,
   mapSummaryToDashboardSummary,
 } from "@/lib/mappers";
-import { useJobActions } from "@/hooks/useJobActions";
+import { useDownloadQueue } from "@/hooks/useDownloadQueue";
 import type {
   ApiDashboardSummary,
   ApiJobSummary,
@@ -27,18 +26,12 @@ import type {
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
-  const { retry, cancel } = useJobActions();
+  const { retry } = useDownloadQueue();
   const [createOpen, setCreateOpen] = useState(false);
 
   const summaryQuery = useQuery({
     queryKey: ["dashboard", "summary"],
     queryFn: () => api<ApiDashboardSummary>("/dashboard/summary"),
-  });
-
-  const activeJobsQuery = useQuery({
-    queryKey: ["dashboard", "active-jobs"],
-    queryFn: () =>
-      api<Paginated<ApiJobSummary>>("/dashboard/active-jobs?page=1&limit=20"),
   });
 
   const historyQuery = useQuery({
@@ -52,7 +45,7 @@ export default function DashboardPage() {
     queryFn: () => api<Paginated<ApiProject>>("/projects?page=1&limit=2"),
   });
 
-  const queries = [summaryQuery, activeJobsQuery, historyQuery, projectsQuery];
+  const queries = [summaryQuery, historyQuery, projectsQuery];
 
   if (queries.some((q) => q.isPending)) {
     return (
@@ -97,10 +90,8 @@ export default function DashboardPage() {
         userName={userName}
         userAvatar={user?.avatar_url ?? undefined}
         summary={mapSummaryToDashboardSummary(summaryQuery.data!)}
-        activeJobs={(activeJobsQuery.data?.data ?? []).map(mapJobSummaryToJob)}
         projects={(projectsQuery.data?.data ?? []).map(mapProjectToProject)}
         history={(historyQuery.data?.data ?? []).map(mapJobSummaryToHistoryEntry)}
-        onCancelJob={(job) => cancel(job.id)}
         onRetryHistory={(entry) => retry(entry.id)}
         onCreateProject={() => setCreateOpen(true)}
         onConnectDrive={goToDriveConnect}

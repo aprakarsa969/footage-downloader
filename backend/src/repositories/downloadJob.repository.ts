@@ -123,6 +123,7 @@ type JobFilters = {
   platform?: string;
   from?: Date;
   to?: Date;
+  search?: string;
 };
 
 /** Konstruksi where: semua job user (project non-deleted) + filter opsional. */
@@ -140,12 +141,30 @@ function jobWhereByUser(userId: string, filters: JobFilters = {}) {
           },
         }
       : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { videoTitle: { contains: filters.search, mode: 'insensitive' as const } },
+            { sourceUrl: { contains: filters.search, mode: 'insensitive' as const } },
+            { project: { name: { contains: filters.search, mode: 'insensitive' as const } } },
+          ],
+        }
+      : {}),
   };
 }
 
 /** Jumlah job user (opsional filter status). */
 export function countDownloadJobsByUser(userId: string, status?: JobStatus) {
   return prisma.downloadJob.count({ where: jobWhereByUser(userId, { status }) });
+}
+
+/** Pemetaan driveFileId → thumbnailUrl untuk fallback thumbnail Google Drive. */
+export function findThumbnailsByDriveFileIds(driveFileIds: string[]) {
+  if (driveFileIds.length === 0) return Promise.resolve([]);
+  return prisma.downloadJob.findMany({
+    where: { driveFileId: { in: driveFileIds } },
+    select: { driveFileId: true, thumbnailUrl: true },
+  });
 }
 
 /** Jumlah job per status untuk semua project user — untuk summary dashboard. */
@@ -171,6 +190,7 @@ const JOB_ITEM_SELECT = {
   sourceUrl: true,
   videoTitle: true,
   platform: true,
+  thumbnailUrl: true,
   mode: true,
   status: true,
   progressPercent: true,
@@ -211,4 +231,21 @@ export function listHistoryJobsByUser(
 /** Jumlah riwayat job user + filter (untuk pagination). */
 export function countHistoryJobsByUser(userId: string, filters: JobFilters) {
   return prisma.downloadJob.count({ where: jobWhereByUser(userId, filters) });
+}
+
+/** Hapus 1 riwayat job milik user (via project ownership). */
+export function deleteHistoryJobByUser(id: string, userId: string) {
+  return prisma.downloadJob.deleteMany({
+    where: { id, project: { userId, deletedAt: null } },
+  });
+}
+
+/** Hapus semua riwayat selesai/gagal/dibatalkan milik user (pending/processing dilindungi). */
+export function clearHistoryJobsByUser(userId: string) {
+  return prisma.downloadJob.deleteMany({
+    where: {
+      project: { userId, deletedAt: null },
+      status: { in: ['done', 'failed', 'cancelled'] },
+    },
+  });
 }

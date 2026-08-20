@@ -29,7 +29,7 @@ export function Avatar({ src, alt, size, className }: AvatarProps) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={alt} onError={() => setFailed(true)} className="h-full w-full object-cover" />
       ) : (
-        <span aria-hidden="true">{alt.charAt(0).toUpperCase()}</span>
+        <span aria-hidden="true">{alt.toUpperCase()}</span>
       )}
     </div>
   );

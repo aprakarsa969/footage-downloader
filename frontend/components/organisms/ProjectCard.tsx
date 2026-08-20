@@ -1,57 +1,40 @@
-import { ExternalLink, Folder } from "lucide-react";
+import { Film } from "lucide-react";
 import Link from "next/link";
 
 import { Icon } from "@/components/atoms/Icon";
-import { formatRelativeTime } from "@/lib/date";
 import type { Project } from "@/types/project";
 
 export type ProjectCardProps = Project;
 
-export function ProjectCard({
-  id,
-  name,
-  footageCount,
-  driveAccountEmail,
-  driveFolderUrl,
-  createdAt,
-}: ProjectCardProps) {
+export function ProjectCard({ id, name, footageCount, recentThumbnails }: ProjectCardProps) {
   return (
-    <div className="glass-card group rounded-2xl p-5 transition-all duration-hover hover:border-primary/30">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-hover group-hover:scale-110">
-          <Icon icon={Folder} size={20} />
-        </div>
-        <span className="rounded-full bg-bg-elevated px-2.5 py-1 text-helper text-text-muted">
-          {formatRelativeTime(createdAt)}
-        </span>
+    <Link
+      href={`/projects/${id}`}
+      className="glass-card group overflow-hidden rounded-card transition-colors duration-hover hover:border-primary/30"
+    >
+      <div className="grid h-20 grid-cols-3 gap-px bg-border/50">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="relative overflow-hidden bg-bg-elevated">
+            {recentThumbnails[i] ? (
+              <img
+                src={recentThumbnails[i]}
+                alt=""
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <Icon icon={Film} size={14} className="text-text-muted/40" />
+              </div>
+            )}
+          </div>
+        ))}
       </div>
-
-      <Link href={`/projects/${id}`} className="block">
-        <h3 className="truncate text-body font-medium text-text-primary">{name}</h3>
-        <p className="mt-1 text-caption text-text-muted">
+      <div className="p-3">
+        <h4 className="truncate text-body font-medium text-text-primary">{name}</h4>
+        <p className="mt-0.5 text-helper text-text-muted">
           {footageCount} {footageCount === 1 ? "video" : "videos"}
         </p>
-      </Link>
-
-      {(driveAccountEmail || driveFolderUrl) && (
-        <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
-          <p className="truncate text-helper text-text-muted">
-            {driveAccountEmail ?? ""}
-          </p>
-          {driveFolderUrl ? (
-            <a
-              href={driveFolderUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Open folder in Drive"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-button text-text-secondary transition-colors duration-hover hover:text-primary"
-            >
-              <span className="text-helper font-medium">Drive</span>
-              <Icon icon={ExternalLink} size={14} />
-            </a>
-          ) : null}
-        </div>
-      )}
-    </div>
+      </div>
+    </Link>
   );
 }

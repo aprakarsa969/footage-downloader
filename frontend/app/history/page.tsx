@@ -1,19 +1,20 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, History } from "lucide-react";
+import { AlertCircle, History, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
 import { MonoText } from "@/components/atoms/MonoText";
+import { Select } from "@/components/atoms/Select";
 import { Spinner } from "@/components/atoms/Spinner";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { HistoryTable } from "@/components/organisms/HistoryTable";
 import { AppShell } from "@/components/templates/AppShell";
 import { api, getUser } from "@/lib/api";
 import { mapJobSummaryToHistoryEntry } from "@/lib/mappers";
-import { useJobActions } from "@/hooks/useJobActions";
+import { useDownloadQueue } from "@/hooks/useDownloadQueue";
 import type { ApiJobSummary, ApiProject, ApiUser, Paginated } from "@/types/api";
 import type { JobStatus } from "@/types/job";
 
@@ -32,18 +33,19 @@ function toIso(date: string, endOfDay: boolean): string {
   return new Date(`${date}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}`).toISOString();
 }
 
-const selectClassName =
-  "h-10 rounded-xl border border-border bg-bg-surface px-3 text-helper text-text-primary focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors duration-hover";
+const dateInputClassName =
+  "h-12 flex-1 min-w-[160px] rounded-input border border-border bg-bg-surface px-3 text-body text-text-primary [color-scheme:dark] placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors duration-hover cursor-pointer";
 
 export default function HistoryPage() {
   const queryClient = useQueryClient();
-  const { retry } = useJobActions();
+  const { retry, deleteHistoryItem, clearHistory } = useDownloadQueue();
   const [status, setStatus] = useState("");
   const [projectId, setProjectId] = useState("");
   const [platform, setPlatform] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const projectsQuery = useQuery({
     queryKey: ["projects"],
@@ -69,6 +71,15 @@ export default function HistoryPage() {
   const resetPage = (setter: (v: string) => void) => (value: string) => {
     setter(value);
     setPage(1);
+  };
+
+  const handleDeleteItem = (entry: { id: string }) => {
+    deleteHistoryItem(entry.id);
+  };
+
+  const handleClearHistory = () => {
+    clearHistory();
+    setShowClearConfirm(false);
   };
 
   if (historyQuery.isPending) {
@@ -134,64 +145,86 @@ export default function HistoryPage() {
 
   return (
     <AppShell userName={userName} userAvatar={user?.avatar_url ?? undefined}>
-      <div>
-        <h1 className="font-heading text-page-title text-text-primary">Download History</h1>
-        <p className="mt-1 text-body text-text-muted">Browse, filter, and retry past video download jobs.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-heading text-page-title text-text-primary">Download History</h1>
+          <p className="mt-1 text-body text-text-muted">Browse, filter, and retry past video download jobs.</p>
+        </div>
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={() => setShowClearConfirm(true)}
+          className="shrink-0"
+        >
+          <Icon icon={Trash2} size={14} className="mr-1.5" />
+          Clear History
+        </Button>
       </div>
+
+      {showClearConfirm && (
+        <div className="glass-card rounded-2xl border border-status-danger/30 bg-status-danger/5 p-4">
+          <p className="text-body text-text-primary">
+            Delete all finished, failed, and cancelled history? Active downloads will not be affected.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <Button size="sm" variant="danger" onClick={handleClearHistory}>
+              Yes, Clear All
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowClearConfirm(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="glass-card-accent rounded-2xl p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            className={selectClassName}
+          <Select
             value={status}
-            onChange={(e) => resetPage(setStatus)(e.target.value)}
+            onChange={(val) => resetPage(setStatus)(val)}
             aria-label="Filter status"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            options={STATUS_OPTIONS}
+            className="w-36"
+          />
 
-          <select
-            className={selectClassName}
+          <Select
             value={projectId}
-            onChange={(e) => resetPage(setProjectId)(e.target.value)}
+            onChange={(val) => resetPage(setProjectId)(val)}
             aria-label="Filter project"
-          >
-            <option value="">All projects</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "All projects" },
+              ...projects.map((project) => ({
+                value: project.id,
+                label: project.name,
+              })),
+            ]}
+            className="w-48"
+          />
 
-          <select
-            className={selectClassName}
+          <Select
             value={platform}
-            onChange={(e) => resetPage(setPlatform)(e.target.value)}
+            onChange={(val) => resetPage(setPlatform)(val)}
             aria-label="Filter platform"
-          >
-            <option value="">All platforms</option>
-            {platforms.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: "", label: "All platforms" },
+              ...platforms.map((value) => ({
+                value,
+                label: value,
+              })),
+            ]}
+            className="w-40"
+          />
 
           <input
             type="date"
-            className={selectClassName}
+            className={dateInputClassName}
             value={from}
             onChange={(e) => resetPage(setFrom)(e.target.value)}
             aria-label="From date"
           />
           <input
             type="date"
-            className={selectClassName}
+            className={dateInputClassName}
             value={to}
             onChange={(e) => resetPage(setTo)(e.target.value)}
             aria-label="To date"
@@ -219,7 +252,11 @@ export default function HistoryPage() {
           }
         />
       ) : (
-        <HistoryTable entries={entries} onRetry={(entry) => retry(entry.id)} />
+        <HistoryTable
+          entries={entries}
+          onRetry={(entry) => retry(entry.id)}
+          onDelete={handleDeleteItem}
+        />
       )}
 
       <div className="flex items-center justify-between">

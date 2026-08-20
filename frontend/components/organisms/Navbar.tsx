@@ -1,72 +1,36 @@
 "use client";
 
-import { Bell, Menu, Moon, Search, X } from "lucide-react";
+import { ArrowDownToLine, Bell, Menu, Moon, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { Avatar } from "@/components/atoms/Avatar";
 import { Badge } from "@/components/atoms/Badge";
 import { Icon } from "@/components/atoms/Icon";
+import { JobQueuePanel } from "@/components/organisms/JobQueuePanel";
 import { NotificationPanel } from "@/components/organisms/NotificationPanel";
 import { SearchDropdown } from "@/components/organisms/SearchDropdown";
+import { useClickOutside } from "@/hooks/useClickOutside";
+import { useDownloadQueue } from "@/hooks/useDownloadQueue";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useSidebarStore } from "@/stores/sidebar";
 
-export type NavbarProps = {
-  userName: string;
-  userAvatar?: string;
-  unreadCount?: number;
-};
-
-export function Navbar({ userName, userAvatar }: NavbarProps) {
+export function Navbar() {
   const [notifOpen, setNotifOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const notifRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
   const search = useGlobalSearch();
-  const { notifications, markRead, markAllRead, unreadCount } =
-    useNotifications();
+  const { notifications, markRead, markAllRead, unreadCount } = useNotifications();
+  const { activeCount } = useDownloadQueue();
 
-  // Close notification on outside click
-  useEffect(() => {
-    if (!notifOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (!notifRef.current?.contains(e.target as Node)) setNotifOpen(false);
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setNotifOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [notifOpen]);
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    search.setQuery("");
+  }, [search]);
 
-  // Close search on outside click
-  useEffect(() => {
-    if (!searchOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (!searchRef.current?.contains(e.target as Node)) {
-        setSearchOpen(false);
-        search.setQuery("");
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setSearchOpen(false);
-        search.setQuery("");
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [searchOpen, search]);
+  const notifRef = useClickOutside<HTMLDivElement>(() => setNotifOpen(false), notifOpen);
+  const queueRef = useClickOutside<HTMLDivElement>(() => setQueueOpen(false), queueOpen);
+  const searchRef = useClickOutside<HTMLDivElement>(closeSearch, searchOpen);
 
   // Keyboard shortcut ⌘K / Ctrl+K to open search
   useEffect(() => {
@@ -128,10 +92,7 @@ export function Navbar({ userName, userAvatar }: NavbarProps) {
               </div>
               <SearchDropdown
                 search={search}
-                onClose={() => {
-                  setSearchOpen(false);
-                  search.setQuery("");
-                }}
+                onClose={closeSearch}
               />
             </div>
           </div>
@@ -140,6 +101,34 @@ export function Navbar({ userName, userAvatar }: NavbarProps) {
 
       {/* Right side actions */}
       <div className="flex items-center gap-2 md:gap-3">
+        {/* Download Queue */}
+        <div className="relative" ref={queueRef}>
+          <button
+            type="button"
+            onClick={() => setQueueOpen((v) => !v)}
+            aria-label="Download queue"
+            aria-expanded={queueOpen}
+            className="relative rounded-button p-2 text-text-secondary transition-colors duration-hover hover:text-text-primary"
+          >
+            <Icon icon={ArrowDownToLine} size={18} className={activeCount > 0 ? "animate-pulse text-primary" : undefined} />
+            {activeCount > 0 ? (
+              <Badge
+                variant="info"
+                size="sm"
+                className="absolute -right-1 -top-1 rounded-full bg-primary text-white"
+              >
+                {activeCount > 99 ? "99+" : activeCount}
+              </Badge>
+            ) : null}
+          </button>
+          {queueOpen && (
+            <div className="absolute right-0 top-full z-50 mt-2 overflow-hidden rounded-dropdown border border-border bg-bg-elevated shadow-card">
+              <JobQueuePanel onClose={() => setQueueOpen(false)} />
+            </div>
+          )}
+        </div>
+
+        {/* Notifications */}
         <div className="relative" ref={notifRef}>
           <button
             type="button"
@@ -180,6 +169,7 @@ export function Navbar({ userName, userAvatar }: NavbarProps) {
             </div>
           )}
         </div>
+
         <button
           type="button"
           className="rounded-button p-2 text-text-secondary transition-colors duration-hover hover:text-text-primary"
@@ -187,12 +177,6 @@ export function Navbar({ userName, userAvatar }: NavbarProps) {
         >
           <Icon icon={Moon} size={18} />
         </button>
-        <div className="flex items-center gap-2.5 border-l border-border pl-3">
-          <Avatar src={userAvatar} alt={userName} size="sm" />
-          <span className="hidden text-caption text-text-primary lg:block">
-            {userName}
-          </span>
-        </div>
       </div>
     </header>
   );

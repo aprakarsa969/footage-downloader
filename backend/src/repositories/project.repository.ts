@@ -14,19 +14,37 @@ export function createProject(data: CreateProjectInput) {
   return prisma.project.create({ data });
 }
 
-/** List project milik user yang belum dihapus (soft-delete via deletedAt). */
-export function listProjectsByUser(userId: string, skip: number, take: number) {
+/** List project milik user yang belum dihapus (soft-delete via deletedAt). Sertakan 3 thumbnail terbaru. */
+export function listProjectsByUser(userId: string, skip: number, take: number, search?: string) {
   return prisma.project.findMany({
-    where: { userId, deletedAt: null },
+    where: {
+      userId,
+      deletedAt: null,
+      ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
+    },
     orderBy: { createdAt: 'desc' },
     skip,
     take,
+    include: {
+      downloadJobs: {
+        where: { status: 'done', thumbnailUrl: { not: null } },
+        select: { thumbnailUrl: true },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+      },
+    },
   });
 }
 
 /** Jumlah project aktif user (untuk pagination). */
-export function countProjectsByUser(userId: string) {
-  return prisma.project.count({ where: { userId, deletedAt: null } });
+export function countProjectsByUser(userId: string, search?: string) {
+  return prisma.project.count({
+    where: {
+      userId,
+      deletedAt: null,
+      ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
+    },
+  });
 }
 
 /** Cari satu project milik user; null kalau bukan miliknya atau sudah dihapus. */

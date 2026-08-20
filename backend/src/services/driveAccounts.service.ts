@@ -1,15 +1,9 @@
 // Service DriveAccounts: koneksi + manajemen akun Google Drive user.
-// Kunci: getDriveClientWithRefresh — dipakai worker/service lain untuk dapat client Drive
-// dengan refresh token otomatis kalau access token kedaluwarsa.
 import { googleDriveOAuthClient } from '../config/googleOAuth.js';
-import { decrypt, encrypt } from '../lib/encryption.js';
+import { encrypt } from '../lib/encryption.js';
 import {
   getDriveOAuthClient,
   getStorageQuota,
-  isTokenExpired,
-  refreshAccessToken,
-  type DriveOAuthClient,
-  type DriveTokenCredentials,
 } from '../lib/googleDrive.js';
 import {
   clearDefaultDriveAccount,
@@ -21,37 +15,12 @@ import {
   deleteDriveAccount,
   findDriveAccountByIdAndUser,
   listDriveAccountsByUser,
-  updateDriveAccountTokens,
 } from '../repositories/driveAccount.repository.js';
 import { countActiveProjectsByDriveAccount } from '../repositories/project.repository.js';
 import { AppError } from '../utils/AppError.js';
 import { driveAccountToResponse } from '../utils/responses.js';
 
 const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.file', 'email'];
-
-/**
- * Dapatkan client Google Drive untuk sebuah akun.
- * Dekripsi token dari DB; kalau kedaluwarsa → refresh → simpan access token baru (terenkripsi) → buat client.
- */
-export async function getDriveClientWithRefresh(
-  account: { id: string; accessToken: string; refreshToken: string; tokenExpiresAt: Date },
-): Promise<DriveOAuthClient> {
-  let creds: DriveTokenCredentials = {
-    accessToken: decrypt(account.accessToken),
-    refreshToken: decrypt(account.refreshToken),
-    tokenExpiresAt: account.tokenExpiresAt,
-  };
-  if (isTokenExpired(creds)) {
-    const client = getDriveOAuthClient(creds);
-    const refreshed = await refreshAccessToken(client);
-    await updateDriveAccountTokens(account.id, {
-      accessTokenEncrypted: encrypt(refreshed.accessToken),
-      tokenExpiresAt: refreshed.tokenExpiresAt,
-    });
-    creds = { ...creds, ...refreshed };
-  }
-  return getDriveOAuthClient(creds);
-}
 
 /** URL consent Google Drive (scope drive.file). userId dikirim via state → di-pas kembali di callback. */
 function getConnectUrl(userId: string): string {

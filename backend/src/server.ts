@@ -2,7 +2,7 @@
 // Pipeline download di-build di sini dengan adapter produksi, lalu di-inject ke worker.
 import 'dotenv/config';
 import app from './app.js';
-import { redisConnection } from './config/redis.js';
+import { getRedisConnection } from './config/redis.js';
 import { initSocket, emitToUser } from './websocket/socket.js';
 import { startDownloadWorker } from './workers/downloadJob.worker.js';
 import { createDownloadPipeline } from './workers/downloadPipeline.js';
@@ -25,7 +25,7 @@ const PORT = Number(process.env.PORT) || 4000;
 const batchSentinel = createBatchSentinel({
   countByBatchAndStatus: countDownloadJobsByBatchAndStatus,
   acquireLock: (batchId) =>
-    redisConnection.set(`batch:sentinel:${batchId}`, '1', 'EX', 60, 'NX').then((v) => v === 'OK'),
+    getRedisConnection().set(`batch:sentinel:${batchId}`, '1', 'EX', 60, 'NX').then((v) => v === 'OK'),
   createNotification: async (userId, projectId, batchId, message) => {
     await createNotification(userId, projectId, batchId, message);
   },

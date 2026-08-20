@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/atoms/Button";
@@ -15,9 +15,10 @@ import type { HistoryEntry } from "@/types/history";
 export type HistoryCardListProps = {
   entries: HistoryEntry[];
   onRetry?: (entry: HistoryEntry) => void;
+  onDelete?: (entry: HistoryEntry) => void;
 };
 
-export function HistoryCardList({ entries, onRetry }: HistoryCardListProps) {
+export function HistoryCardList({ entries, onRetry, onDelete }: HistoryCardListProps) {
   return (
     <div className="space-y-3">
       {entries.map((entry) => (
@@ -51,7 +52,7 @@ export function HistoryCardList({ entries, onRetry }: HistoryCardListProps) {
                 {formatRelativeTime(entry.createdAt)}
               </MonoText>
             </div>
-            <div className="mt-2">
+            <div className="mt-2 flex items-center gap-2">
               {entry.status === "failed" && onRetry ? (
                 <Button
                   size="sm"
@@ -71,6 +72,17 @@ export function HistoryCardList({ entries, onRetry }: HistoryCardListProps) {
                   <Icon icon={ExternalLink} size={16} />
                   Open in Drive
                 </a>
+              ) : null}
+              {onDelete ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(entry)}
+                  aria-label="Delete history item"
+                  className="inline-flex items-center gap-1.5 rounded-button px-3 py-2 text-caption text-text-muted transition-colors duration-hover hover:text-status-danger"
+                >
+                  <Icon icon={Trash2} size={14} />
+                  Delete
+                </button>
               ) : null}
             </div>
           </div>

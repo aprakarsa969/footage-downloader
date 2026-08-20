@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/atoms/Button";
@@ -16,11 +16,12 @@ import type { HistoryEntry } from "@/types/history";
 export type HistoryTableProps = {
   entries: HistoryEntry[];
   onRetry?: (entry: HistoryEntry) => void;
+  onDelete?: (entry: HistoryEntry) => void;
   bare?: boolean;
   compact?: boolean;
 };
 
-export function HistoryTable({ entries, onRetry, bare, compact }: HistoryTableProps) {
+export function HistoryTable({ entries, onRetry, onDelete, bare, compact }: HistoryTableProps) {
   const table = (
     <>
       <div
@@ -88,21 +89,33 @@ export function HistoryTable({ entries, onRetry, bare, compact }: HistoryTablePr
                 </td>
               ) : null}
               <td className="px-4 py-3">
-                {entry.status === "failed" && onRetry ? (
-                  <Button size="sm" variant="secondary" onClick={() => onRetry(entry)}>
-                    Retry
-                  </Button>
-                ) : entry.status === "done" && entry.driveFileUrl ? (
-                  <a
-                    href={entry.driveFileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Open file in Drive"
-                    className="inline-flex rounded-button p-2 text-text-secondary transition-colors duration-hover hover:text-primary"
-                  >
-                    <Icon icon={ExternalLink} size={18} />
-                  </a>
-                ) : null}
+                <div className="flex items-center gap-1">
+                  {entry.status === "failed" && onRetry ? (
+                    <Button size="sm" variant="secondary" onClick={() => onRetry(entry)}>
+                      Retry
+                    </Button>
+                  ) : entry.status === "done" && entry.driveFileUrl ? (
+                    <a
+                      href={entry.driveFileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Open file in Drive"
+                      className="inline-flex rounded-button p-2 text-text-secondary transition-colors duration-hover hover:text-primary"
+                    >
+                      <Icon icon={ExternalLink} size={18} />
+                    </a>
+                  ) : null}
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(entry)}
+                      aria-label="Delete history item"
+                      className="inline-flex rounded-button p-2 text-text-muted transition-colors duration-hover hover:text-status-danger"
+                    >
+                      <Icon icon={Trash2} size={16} />
+                    </button>
+                  ) : null}
+                </div>
               </td>
             </tr>
           ))}
@@ -110,7 +123,7 @@ export function HistoryTable({ entries, onRetry, bare, compact }: HistoryTablePr
       </table>
       </div>
       <div className="md:hidden">
-        <HistoryCardList entries={entries} onRetry={onRetry} />
+        <HistoryCardList entries={entries} onRetry={onRetry} onDelete={onDelete} />
       </div>
     </>
   );

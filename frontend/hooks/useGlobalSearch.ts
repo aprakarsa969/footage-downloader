@@ -23,27 +23,26 @@ export function useGlobalSearch() {
   const debouncedQuery = useDebounce(query, 300);
 
   const enabled = debouncedQuery.trim().length >= 2;
+  const q = encodeURIComponent(debouncedQuery);
 
   const projectsQuery = useQuery({
     queryKey: ["search", "projects", debouncedQuery],
-    queryFn: () => api<Paginated<ApiProject>>("/projects?page=1&limit=10"),
+    queryFn: () => api<Paginated<ApiProject>>(`/projects?page=1&limit=10&q=${q}`),
     enabled,
   });
 
   const historyQuery = useQuery({
     queryKey: ["search", "history", debouncedQuery],
     queryFn: () =>
-      api<Paginated<ApiJobSummary>>("/dashboard/history?page=1&limit=20"),
+      api<Paginated<ApiJobSummary>>(`/dashboard/history?page=1&limit=20&q=${q}`),
     enabled,
   });
 
   const isLoading = enabled && (projectsQuery.isPending || historyQuery.isPending);
 
-  const lower = debouncedQuery.toLowerCase();
   const results: SearchCategory[] = [];
 
   const matchedProjects = (projectsQuery.data?.data ?? [])
-    .filter((p) => p.name.toLowerCase().includes(lower))
     .map(mapProjectToProject)
     .map((p) => ({
       id: p.id,
@@ -55,12 +54,6 @@ export function useGlobalSearch() {
   if (matchedProjects.length > 0) results.push("projects");
 
   const matchedHistory = (historyQuery.data?.data ?? [])
-    .filter(
-      (j) =>
-        j.video_title?.toLowerCase().includes(lower) ||
-        j.project_name?.toLowerCase().includes(lower) ||
-        j.source_url?.toLowerCase().includes(lower),
-    )
     .map(mapJobSummaryToHistoryEntry)
     .map((h) => ({
       id: h.id,

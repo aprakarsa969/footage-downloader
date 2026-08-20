@@ -1,5 +1,5 @@
 // Wrapper Google Drive API v3 (googleapis).
-// Hanya operasi minimum yang dibutuhkan: refresh token, kuota storage, buat folder, upload file.
+// Operasi minimum: refresh token, kuota storage, buat folder, upload file, stream file untuk proxy.
 import 'dotenv/config';
 import { createReadStream } from 'node:fs';
 import { basename } from 'node:path';
@@ -120,6 +120,36 @@ export async function deleteDriveFile(
   await drive.files.delete({ fileId });
 }
 
+/**
+ * Buat permission "anyone with link" reader pada file.
+ * Dipakai untuk streaming video via direct URL tanpa nunggu transcoder Drive.
+ */
+export async function shareFilePublic(
+  client: DriveOAuthClient,
+  fileId: string,
+): Promise<{ permissionId: string }> {
+  const drive = google.drive({ version: 'v3', auth: client });
+  const res = await drive.permissions.create({
+    fileId,
+    requestBody: { type: 'anyone', role: 'reader' },
+    fields: 'id',
+  });
+  if (!res.data.id) {
+    throw new Error('Drive API returned permission without id');
+  }
+  return { permissionId: res.data.id };
+}
+
+/** Hapus permission spesifik dari file (cabut akses public). */
+export async function revokeFilePublic(
+  client: DriveOAuthClient,
+  fileId: string,
+  permissionId: string,
+): Promise<void> {
+  const drive = google.drive({ version: 'v3', auth: client });
+  await drive.permissions.delete({ fileId, permissionId });
+}
+
 /** Upload file lokal ke folder Drive via streaming (resumable), nama = basename file. */
 export async function uploadFile(
   client: DriveOAuthClient,
@@ -141,4 +171,28 @@ export async function uploadFile(
     throw new Error('Drive API returned file without id or url');
   }
   return { id: res.data.id, url: res.data.webViewLink };
+}
+
+/** Stream isi file dari Google Drive (untuk proxy backend → frontend). Mendukung header Range untuk seeking video. */
+export async function streamFile(
+  client: DriveOAuthClient,
+  fileId: string,
+  options?: { rangeHeader?: string | null },
+): Promise<{ stream: import('node:stream').Readable; headers: Record<string, string> }> {
+  const drive = google.drive({ version: 'v3', auth: client });
+  const res = await drive.files.get(
+    { fileId, alt: 'media' },
+    {
+      responseType: 'stream',
+      headers: options?.rangeHeader ? { Range: options.rangeHeader } : {},
+    },
+  );
+
+  const headers: Record<string, string> = {};
+  if (res.headers?.['content-type']) headers['Content-Type'] = res.headers['content-type'];
+  if (res.headers?.['content-length']) headers['Content-Length'] = res.headers['content-length'];
+  if (res.headers?.['content-range']) headers['Content-Range'] = res.headers['content-range'];
+  if (res.headers?.['accept-ranges']) headers['Accept-Ranges'] = res.headers['accept-ranges'];
+
+  return { stream: res.data as import('node:stream').Readable, headers };
 }

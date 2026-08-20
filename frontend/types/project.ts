@@ -4,5 +4,6 @@ export type Project = {
   footageCount: number;
   driveAccountEmail?: string;
   driveFolderUrl?: string;
+  recentThumbnails: string[];
   createdAt: string;
 };
