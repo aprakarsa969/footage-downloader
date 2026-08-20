@@ -142,11 +142,27 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
     onSubmit?.(batchLinks);
   };
 
+  const handleAdd = () =>
+    append({ url: "", mode: "full", trimStart: "0:00", trimEnd: "0:30", resolution: "" });
+
   return (
     <form
       className="space-y-3"
       onSubmit={handleSubmit(handleSubmitLinks)}
     >
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="font-heading text-subtitle font-medium text-text-primary">Add Links</h2>
+        <button
+          type="button"
+          onClick={handleAdd}
+          aria-label="Add another link"
+          title="Add another link"
+          className="rounded-button p-2 text-text-secondary transition-colors duration-hover hover:text-primary"
+        >
+          <Icon icon={Plus} size={18} />
+        </button>
+      </div>
+
       <div className="space-y-3">
         {fields.map((field, index) => {
           const url = urls[index]?.url.trim() ?? "";
@@ -314,27 +330,10 @@ export function LinkInputForm({ onSubmit }: LinkInputFormProps) {
       {/* Action Buttons */}
       <div className="flex gap-2.5">
         <Button
-          type="button"
-          variant="secondary"
-          onClick={() =>
-            append({
-              url: "",
-              mode: "full",
-              trimStart: "0:00",
-              trimEnd: "0:30",
-              resolution: "",
-            })
-          }
-          icon={Plus}
-          className="flex-1 justify-center"
-        >
-          Add Another Link
-        </Button>
-        <Button
           type="submit"
           disabled={fields.length === 0 || hasInvalid}
           icon={Download}
-          className="flex-1 justify-center"
+          className="w-full justify-center"
         >
           Download
         </Button>

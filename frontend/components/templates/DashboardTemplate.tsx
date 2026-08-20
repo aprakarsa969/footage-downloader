@@ -52,37 +52,50 @@ function QuickDownloadBar({ projects }: { projects: Project[] }) {
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="Paste YouTube, TikTok, or Instagram link here"
-        className="flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
+        className="min-w-0 flex-1 bg-transparent text-body text-text-primary placeholder:text-text-muted focus:outline-none"
       />
       <Button
         type="submit"
         size="sm"
         disabled={!url.trim() || isPending}
         icon={SquarePlay}
-      >
-        Download
-      </Button>
+        aria-label="Download"
+        title="Download"
+        className="shrink-0 px-2"
+      />
     </form>
   );
 }
 
 function ProjectCardGrid({ projects, onCreate }: { projects: Project[]; onCreate?: () => void }) {
-  const visible = projects.slice(0, 3);
   return (
-    <div className="grid grid-cols-3 gap-3">
-      {visible.map((project) => (
-        <ProjectCard key={project.id} {...project} />
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      {projects.length > 0 && <ProjectCard key={projects[0].id} {...projects[0]} />}
+      {projects.slice(1, 3).map((project) => (
+        <div key={project.id} className="hidden md:block">
+          <ProjectCard {...project} />
+        </div>
       ))}
-      {onCreate && visible.length < 3 ? (
+      {onCreate && (
         <button
           type="button"
           onClick={onCreate}
-          className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-border p-4 transition-colors duration-hover hover:border-primary/50"
+          className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-border p-4 transition-colors duration-hover hover:border-primary/50 md:hidden"
         >
           <Icon icon={FolderPlus} size={20} className="text-text-muted" />
           <span className="text-caption text-text-secondary">Create project</span>
         </button>
-      ) : null}
+      )}
+      {onCreate && projects.length < 3 && (
+        <button
+          type="button"
+          onClick={onCreate}
+          className="hidden flex-col items-center justify-center gap-2 rounded-card border border-dashed border-border p-4 transition-colors duration-hover hover:border-primary/50 md:flex"
+        >
+          <Icon icon={FolderPlus} size={20} className="text-text-muted" />
+          <span className="text-caption text-text-secondary">Create project</span>
+        </button>
+      )}
     </div>
   );
 }

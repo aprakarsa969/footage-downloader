@@ -6,7 +6,7 @@ import { Icon } from "@/components/atoms/Icon";
 import { Input } from "@/components/atoms/Input";
 import { AppShell } from "@/components/templates/AppShell";
 import { cn } from "@/lib/utils";
-import { Bell, LogOut, User } from "lucide-react";
+import { Bell, Save, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type SettingsTemplateProps = {
@@ -20,7 +20,6 @@ export type SettingsTemplateProps = {
   onToggleEmailNotif?: () => void;
   onToggleInappNotif?: () => void;
   onSave?: () => void;
-  onLogout?: () => void;
 };
 
 function SectionHeader({ icon, title }: { icon: LucideIcon; title: string }) {
@@ -84,7 +83,6 @@ export function SettingsTemplate({
   onToggleEmailNotif,
   onToggleInappNotif,
   onSave,
-  onLogout,
 }: SettingsTemplateProps) {
   return (
     <AppShell
@@ -145,13 +143,10 @@ export function SettingsTemplate({
       </div>
 
       <div className="glass-card-accent rounded-2xl p-6 transition-all duration-hover">
-        <SectionHeader icon={LogOut} title="Account Actions" />
+        <SectionHeader icon={Save} title="Actions" />
         <div className="flex flex-wrap gap-3">
           <Button onClick={onSave} disabled={!onSave}>
             Save Changes
-          </Button>
-          <Button variant="danger" onClick={onLogout} disabled={!onLogout}>
-            Log Out
           </Button>
         </div>
       </div>

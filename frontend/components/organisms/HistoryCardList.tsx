@@ -5,11 +5,8 @@ import Link from "next/link";
 
 import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
-import { MonoText } from "@/components/atoms/MonoText";
-import { PlatformIcon } from "@/components/molecules/PlatformIcon";
 import { StatusBadge } from "@/components/molecules/StatusBadge";
 import { ThumbnailPreview } from "@/components/molecules/ThumbnailPreview";
-import { formatRelativeTime } from "@/lib/date";
 import type { HistoryEntry } from "@/types/history";
 
 export type HistoryCardListProps = {
@@ -42,23 +39,11 @@ export function HistoryCardList({ entries, onRetry, onDelete }: HistoryCardListP
               <StatusBadge status={entry.status} size="sm" />
             </div>
             <p className="mt-0.5 truncate text-caption text-text-muted">
-              {entry.projectName ? `${entry.projectName} · ` : ""}
-              {entry.mode === "timestamp" ? "Timestamp" : "Full"}
-              {entry.resolution ? ` · ${entry.resolution}` : ""}
+              {entry.projectName ?? "—"}
             </p>
-            <div className="mt-1.5 flex items-center gap-2">
-              <PlatformIcon platform={entry.platform} />
-              <MonoText className="text-helper text-text-muted">
-                {formatRelativeTime(entry.createdAt)}
-              </MonoText>
-            </div>
             <div className="mt-2 flex items-center gap-2">
               {entry.status === "failed" && onRetry ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onRetry(entry)}
-                >
+                <Button size="sm" variant="secondary" onClick={() => onRetry(entry)}>
                   Retry
                 </Button>
               ) : entry.status === "done" && entry.driveFileUrl ? (

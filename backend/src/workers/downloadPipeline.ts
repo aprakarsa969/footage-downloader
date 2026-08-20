@@ -20,6 +20,8 @@ import type { BatchSentinel } from './batchSentinel.js';
 
 const TMP_DIR = path.resolve('tmp');
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 type PipelineDeps = {
   downloader: VideoDownloader;
   trimmer: VideoTrimmer;
@@ -86,106 +88,123 @@ export function createDownloadPipeline(deps: PipelineDeps): DownloadPipeline {
 
     const { project } = job;
     const jobDir = path.join(TMP_DIR, job.id);
-    let filePath: string | null = null;
 
-    try {
-      await deps.store.update(job.id, { status: 'processing', startedAt: new Date() });
-      emitProgress(job, 10, 'downloading');
+    const MAX_AUTO_ATTEMPTS = 2;
+    const RETRY_DELAY_MS = 3000;
 
-      // 1. Metadata video (platform, judul, durasi, thumbnail, resolusi).
-      const metadata = await deps.downloader.fetchMetadata(job.sourceUrl);
-      await deps.store.update(job.id, {
-        platform: metadata.platform,
-        videoTitle: metadata.title,
-        videoDurationSeconds: metadata.durationSeconds,
-        thumbnailUrl: metadata.thumbnailUrl,
-        progressPercent: 10,
-      });
+    for (let attempt = 1; attempt <= MAX_AUTO_ATTEMPTS; attempt++) {
+      let filePath: string | null = null;
+      try {
+        await deps.store.update(job.id, { status: 'processing', startedAt: new Date() });
+        emitProgress(job, 10, 'downloading');
 
-      // 2. Download — full video atau segmen range (mode timestamp).
-      const isTimestamp =
-        job.mode === 'timestamp' && job.trimStartSeconds !== null && job.trimEndSeconds !== null;
-
-      if (!isTimestamp) {
-        const downloaded = await deps.downloader.download(job.sourceUrl, jobDir, {
-          resolution: job.resolution ?? undefined,
+        // 1. Metadata video (platform, judul, durasi, thumbnail, resolusi).
+        const metadata = await deps.downloader.fetchMetadata(job.sourceUrl);
+        await deps.store.update(job.id, {
+          platform: metadata.platform,
+          videoTitle: metadata.title,
+          videoDurationSeconds: metadata.durationSeconds,
+          thumbnailUrl: metadata.thumbnailUrl,
+          progressPercent: 10,
         });
-        filePath = downloaded.filePath;
-      } else {
-        // Clamp end ke durasi video + tolak kalau start melewati durasi.
-        let start = job.trimStartSeconds!;
-        let end = job.trimEndSeconds!;
-        if (metadata.durationSeconds !== null && metadata.durationSeconds !== undefined) {
-          if (start >= metadata.durationSeconds) {
-            throw new Error('trim_start_seconds melebihi durasi video');
-          }
-          end = Math.min(end, metadata.durationSeconds);
-        }
-        filePath = await downloadSegmentWithTrim(
-          job.sourceUrl,
-          jobDir,
-          {
+
+        // 2. Download — full video atau segmen range (mode timestamp).
+        const isTimestamp =
+          job.mode === 'timestamp' && job.trimStartSeconds !== null && job.trimEndSeconds !== null;
+
+        if (!isTimestamp) {
+          const downloaded = await deps.downloader.download(job.sourceUrl, jobDir, {
             resolution: job.resolution ?? undefined,
-            startSeconds: start,
-            endSeconds: end,
-          },
-          () => emitProgress(job, 55, 'trimming'),
-        );
-      }
-      await deps.store.update(job.id, { progressPercent: 40 });
-      emitProgress(job, 40, 'downloading');
+          });
+          filePath = downloaded.filePath;
+        } else {
+          // Clamp end ke durasi video + tolak kalau start melewati durasi.
+          let start = job.trimStartSeconds!;
+          let end = job.trimEndSeconds!;
+          if (metadata.durationSeconds !== null && metadata.durationSeconds !== undefined) {
+            if (start >= metadata.durationSeconds) {
+              throw new Error('trim_start_seconds melebihi durasi video');
+            }
+            end = Math.min(end, metadata.durationSeconds);
+          }
+          filePath = await downloadSegmentWithTrim(
+            job.sourceUrl,
+            jobDir,
+            {
+              resolution: job.resolution ?? undefined,
+              startSeconds: start,
+              endSeconds: end,
+            },
+            () => emitProgress(job, 55, 'trimming'),
+          );
+        }
+        await deps.store.update(job.id, { progressPercent: 40 });
+        emitProgress(job, 40, 'downloading');
 
-      // 3. Upload ke folder Drive project (refresh token otomatis kalau kedaluwarsa).
-      const account = await deps.store.findDriveAccountByIdAndUser(project.driveAccountId, project.userId);
-      if (!account) {
-        throw new Error('Drive account untuk project tidak ditemukan');
-      }
-      await deps.store.update(job.id, { progressPercent: 70 });
-      emitProgress(job, 70, 'uploading');
-      const uploaded = await deps.uploader.upload(account, project.driveFolderId, filePath);
+        // 3. Upload ke folder Drive project (refresh token otomatis kalau kedaluwarsa).
+        const account = await deps.store.findDriveAccountByIdAndUser(project.driveAccountId, project.userId);
+        if (!account) {
+          throw new Error('Drive account untuk project tidak ditemukan');
+        }
+        await deps.store.update(job.id, { progressPercent: 70 });
+        emitProgress(job, 70, 'uploading');
+        const uploaded = await deps.uploader.upload(account, project.driveFolderId, filePath);
 
-      // Guard cancel kedua: job bisa di-cancel saat upload berlangsung → jangan timpa status.
-      if (await isCancelled(job.id)) {
+        // Guard cancel kedua: job bisa di-cancel saat upload berlangsung → jangan timpa status.
+        if (await isCancelled(job.id)) {
+          return;
+        }
+        // 4. Selesai.
+        await deps.store.update(job.id, {
+          status: 'done',
+          progressPercent: 100,
+          fileName: path.basename(filePath),
+          driveFileId: uploaded.id,
+          driveFileUrl: uploaded.url,
+          finishedAt: new Date(),
+        });
+        deps.emitter.done(project.userId, {
+          jobId: job.id,
+          projectId: job.projectId,
+          driveFileUrl: uploaded.url,
+          fileName: path.basename(filePath),
+        });
+        await deps.store.incrementFootageCount(project.id);
+
+        await deps.sentinel.notifyJobFinished(job.batchId, job.projectId, project.userId);
         return;
+      } catch (err) {
+        // Gagal: tulis status failed + pesan error (kecuali job sudah di-cancel).
+        const message = err instanceof Error ? err.message : 'Proses gagal';
+        if (await isCancelled(job.id)) {
+          return;
+        }
+        const retryable = (err as { retryable?: boolean }).retryable === true;
+        if (retryable && attempt < MAX_AUTO_ATTEMPTS) {
+          console.warn(
+            `[pipeline] job ${job.id} error transient (attempt ${attempt}/${MAX_AUTO_ATTEMPTS}), retry: ${message}`,
+          );
+          await sleep(RETRY_DELAY_MS * attempt);
+          continue;
+        }
+        await deps.store.update(job.id, {
+          status: 'failed',
+          errorMessage: message,
+          finishedAt: new Date(),
+        });
+        deps.emitter.failed(project.userId, {
+          jobId: job.id,
+          projectId: job.projectId,
+          errorMessage: message,
+        });
+        break;
+      } finally {
+        // Bersihkan file download sementara (selalu, sukses/gagal/cancel).
+        if (filePath) {
+          await rm(filePath, { force: true });
+        }
+        await rm(jobDir, { recursive: true, force: true });
       }
-      // 4. Selesai.
-      await deps.store.update(job.id, {
-        status: 'done',
-        progressPercent: 100,
-        fileName: path.basename(filePath),
-        driveFileId: uploaded.id,
-        driveFileUrl: uploaded.url,
-        finishedAt: new Date(),
-      });
-      deps.emitter.done(project.userId, {
-        jobId: job.id,
-        projectId: job.projectId,
-        driveFileUrl: uploaded.url,
-        fileName: path.basename(filePath),
-      });
-      await deps.store.incrementFootageCount(project.id);
-    } catch (err) {
-      // Gagal: tulis status failed + pesan error (kecuali job sudah di-cancel).
-      const message = err instanceof Error ? err.message : 'Proses gagal';
-      if (await isCancelled(job.id)) {
-        return;
-      }
-      await deps.store.update(job.id, {
-        status: 'failed',
-        errorMessage: message,
-        finishedAt: new Date(),
-      });
-      deps.emitter.failed(project.userId, {
-        jobId: job.id,
-        projectId: job.projectId,
-        errorMessage: message,
-      });
-    } finally {
-      // Bersihkan file download sementara (selalu, sukses/gagal/cancel).
-      if (filePath) {
-        await rm(filePath, { force: true });
-      }
-      await rm(jobDir, { recursive: true, force: true });
     }
 
     await deps.sentinel.notifyJobFinished(job.batchId, job.projectId, project.userId);

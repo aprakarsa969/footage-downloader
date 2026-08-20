@@ -4,11 +4,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { ToastHost } from "@/components/molecules/ToastHost";
-import { useDownloadQueue } from "@/hooks/useDownloadQueue";
+import { useSocketSync } from "@/hooks/useDownloadQueue";
 import { queryClient } from "@/lib/queryClient";
 
 function GlobalEffects() {
-  useDownloadQueue();
+  useSocketSync();
   return null;
 }
 

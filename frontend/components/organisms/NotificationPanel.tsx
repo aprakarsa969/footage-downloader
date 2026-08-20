@@ -22,7 +22,7 @@ export function NotificationPanel({
   className,
 }: NotificationPanelProps) {
   return (
-    <div className={cn("w-80 max-h-96 overflow-y-auto rounded-dropdown border border-border bg-bg-elevated shadow-card", className)}>
+    <div className={cn("w-full max-h-96 overflow-y-auto rounded-dropdown border border-border bg-bg-elevated shadow-card", className)}>
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="font-heading text-caption text-text-primary">Notifikasi</h3>
         {notifications.length > 0 ? (

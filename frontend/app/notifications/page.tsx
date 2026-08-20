@@ -10,9 +10,7 @@ import { Spinner } from "@/components/atoms/Spinner";
 import { Navbar } from "@/components/organisms/Navbar";
 import { NotificationPanel } from "@/components/organisms/NotificationPanel";
 import { Sidebar } from "@/components/organisms/Sidebar";
-import { getUser } from "@/lib/api";
 import { useNotifications } from "@/hooks/useNotifications";
-import type { ApiUser } from "@/types/api";
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
@@ -56,12 +54,9 @@ export default function NotificationsPage() {
     );
   }
 
-  const user = getUser<ApiUser>();
-  const userName = user?.name || "Pengguna";
-
   return (
     <div className="flex min-h-screen">
-      <Sidebar userName={userName} userAvatar={user?.avatar_url ?? undefined} />
+      <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Navbar />
         <main className="w-full flex-1 space-y-6 px-4 py-4">

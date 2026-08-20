@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { useState } from "react";
+import { useSyncExternalStore, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -23,9 +23,11 @@ export type AvatarProps = {
 
 export function Avatar({ src, alt, size, className }: AvatarProps) {
   const [failed, setFailed] = useState(false);
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   return (
     <div className={cn(avatarVariants({ size }), className)}>
-      {src && !failed ? (
+      {/* ponytail: localStorage user tidak ada saat SSR — render kosong dulu biar server & client cocok, baru tampil setelah mount */}
+      {!mounted ? null : src && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={alt} onError={() => setFailed(true)} className="h-full w-full object-cover" />
       ) : (

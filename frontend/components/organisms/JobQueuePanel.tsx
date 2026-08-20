@@ -7,10 +7,12 @@ import { Icon } from "@/components/atoms/Icon";
 import { PlatformIcon } from "@/components/molecules/PlatformIcon";
 import { ProgressStrip } from "@/components/molecules/ProgressStrip";
 import { StatusBadge } from "@/components/molecules/StatusBadge";
+import { cn } from "@/lib/utils";
 import { useDownloadQueue } from "@/hooks/useDownloadQueue";
 
 type JobQueuePanelProps = {
   onClose?: () => void;
+  unbounded?: boolean;
 };
 
 const stageLabel: Record<string, string> = {
@@ -19,11 +21,11 @@ const stageLabel: Record<string, string> = {
   uploading: "Uploading",
 };
 
-export function JobQueuePanel({ onClose }: JobQueuePanelProps) {
+export function JobQueuePanel({ onClose, unbounded = false }: JobQueuePanelProps) {
   const { activeJobs, recentJobs, retry, cancel } = useDownloadQueue();
 
   return (
-    <div className="w-80 overflow-hidden">
+    <div className="w-full overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <span className="text-body font-medium text-text-primary">
@@ -38,7 +40,7 @@ export function JobQueuePanel({ onClose }: JobQueuePanelProps) {
 
       {/* Active Jobs */}
       {activeJobs.length > 0 && (
-        <div className="max-h-60 overflow-y-auto border-b border-border">
+        <div className={cn("border-b border-border", !unbounded && "max-h-60 overflow-y-auto")}>
           {activeJobs.map((job) => (
             <div key={job.id} className="flex items-start gap-3 px-4 py-3">
               <PlatformIcon platform={job.platform} size={14} className="mt-0.5 shrink-0" />
@@ -73,7 +75,7 @@ export function JobQueuePanel({ onClose }: JobQueuePanelProps) {
 
       {/* Recent Finished */}
       {recentJobs.length > 0 && (
-        <div className="max-h-48 overflow-y-auto border-b border-border">
+        <div className={cn("border-b border-border", !unbounded && "max-h-48 overflow-y-auto")}>
           <div className="px-4 py-2">
             <span className="text-[11px] font-medium uppercase tracking-wider text-text-muted">
               Recently finished

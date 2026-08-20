@@ -70,6 +70,14 @@ export function incrementProjectFootageCount(projectId: string) {
   });
 }
 
+/** Kurangi 1 dari total_footage_count project — dipanggil saat footage dihapus. */
+export function decrementProjectFootageCount(projectId: string) {
+  return prisma.project.update({
+    where: { id: projectId },
+    data: { totalFootageCount: { decrement: 1 } },
+  });
+}
+
 /** Jumlah project aktif (non-deleted) yang memakai akun Drive ini — dipakai cegah hapus kalau masih dipakai. */
 export function countActiveProjectsByDriveAccount(driveAccountId: string) {
   return prisma.project.count({

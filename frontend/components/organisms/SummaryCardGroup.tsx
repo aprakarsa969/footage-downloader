@@ -22,7 +22,7 @@ export type SummaryCardGroupProps = {
 
 export function SummaryCardGroup({ summary }: SummaryCardGroupProps) {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
       {/* Projects */}
       <div className="glass-card rounded-card p-4">
         <p className="text-helper text-text-muted">Projects</p>
@@ -32,7 +32,7 @@ export function SummaryCardGroup({ summary }: SummaryCardGroupProps) {
       </div>
 
       {/* Total Footage */}
-      <div className="glass-card rounded-card p-4">
+      <div className="glass-card hidden rounded-card p-4 md:block">
         <p className="text-helper text-text-muted">Total footage</p>
         <MonoText className="mt-1 block text-2xl font-medium text-text-primary">
           {summary.totalFootage.toLocaleString("en-US")}
@@ -40,26 +40,26 @@ export function SummaryCardGroup({ summary }: SummaryCardGroupProps) {
       </div>
 
       {/* Google Drive */}
-      <div className="glass-card flex items-center justify-between rounded-card p-4">
-        <div className="min-w-0">
-          <div className="mb-1 flex items-center gap-2">
-            <Icon icon={HardDrive} size={14} className="text-primary" />
-            <span className="text-helper text-text-muted">Google Drive</span>
+      <div className="glass-card rounded-card p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icon icon={HardDrive} size={14} className="shrink-0 text-primary" />
+            <span className="truncate text-helper text-text-muted">Google Drive</span>
           </div>
-          <p className="text-body text-text-primary">
-            <MonoText className="font-medium">
-              {formatBytes(summary.storageUsedBytes)}
-            </MonoText>
-            <span className="ml-1 text-helper text-text-muted">
-              of {formatBytes(summary.storageTotalBytes)}
-            </span>
-          </p>
+          <Link href="/drive-accounts" className="shrink-0">
+            <Button size="sm" variant="secondary" className="h-7 px-2 text-helper">
+              Manage
+            </Button>
+          </Link>
         </div>
-        <Link href="/drive-accounts">
-          <Button size="sm" variant="secondary">
-            Manage
-          </Button>
-        </Link>
+        <p className="mt-1.5 text-caption text-text-primary md:text-body">
+          <MonoText className="font-medium">
+            {formatBytes(summary.storageUsedBytes)}
+          </MonoText>
+          <span className="ml-1 text-helper text-text-muted">
+            of {formatBytes(summary.storageTotalBytes)}
+          </span>
+        </p>
       </div>
     </div>
   );

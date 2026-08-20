@@ -14,6 +14,7 @@ import { HistoryTable } from "@/components/organisms/HistoryTable";
 import { AppShell } from "@/components/templates/AppShell";
 import { api, getUser } from "@/lib/api";
 import { mapJobSummaryToHistoryEntry } from "@/lib/mappers";
+import { cn } from "@/lib/utils";
 import { useDownloadQueue } from "@/hooks/useDownloadQueue";
 import type { ApiJobSummary, ApiProject, ApiUser, Paginated } from "@/types/api";
 import type { JobStatus } from "@/types/job";
@@ -184,7 +185,7 @@ export default function HistoryPage() {
             onChange={(val) => resetPage(setStatus)(val)}
             aria-label="Filter status"
             options={STATUS_OPTIONS}
-            className="w-36"
+            className="w-36 flex-1 min-w-0 md:flex-none"
           />
 
           <Select
@@ -198,7 +199,7 @@ export default function HistoryPage() {
                 label: project.name,
               })),
             ]}
-            className="w-48"
+            className="w-48 flex-1 min-w-0 md:flex-none"
           />
 
           <Select
@@ -212,19 +213,19 @@ export default function HistoryPage() {
                 label: value,
               })),
             ]}
-            className="w-40"
+            className="hidden w-40 md:block"
           />
 
           <input
             type="date"
-            className={dateInputClassName}
+            className={cn(dateInputClassName, "hidden md:flex")}
             value={from}
             onChange={(e) => resetPage(setFrom)(e.target.value)}
             aria-label="From date"
           />
           <input
             type="date"
-            className={dateInputClassName}
+            className={cn(dateInputClassName, "hidden md:flex")}
             value={to}
             onChange={(e) => resetPage(setTo)(e.target.value)}
             aria-label="To date"

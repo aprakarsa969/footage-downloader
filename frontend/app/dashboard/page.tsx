@@ -9,24 +9,25 @@ import { Icon } from "@/components/atoms/Icon";
 import { Spinner } from "@/components/atoms/Spinner";
 import { CreateProjectModal } from "@/components/organisms/CreateProjectModal";
 import { DashboardTemplate } from "@/components/templates/DashboardTemplate";
-import { api, getUser, goToDriveConnect } from "@/lib/api";
+import { api, goToDriveConnect } from "@/lib/api";
 import {
   mapJobSummaryToHistoryEntry,
   mapProjectToProject,
   mapSummaryToDashboardSummary,
 } from "@/lib/mappers";
 import { useDownloadQueue } from "@/hooks/useDownloadQueue";
+import { useSession } from "@/stores/session";
 import type {
   ApiDashboardSummary,
   ApiJobSummary,
   ApiProject,
-  ApiUser,
   Paginated,
 } from "@/types/api";
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
   const { retry } = useDownloadQueue();
+  const { user } = useSession();
   const [createOpen, setCreateOpen] = useState(false);
 
   const summaryQuery = useQuery({
@@ -81,7 +82,6 @@ export default function DashboardPage() {
     );
   }
 
-  const user = getUser<ApiUser>();
   const userName = user?.name || "User";
 
   return (
